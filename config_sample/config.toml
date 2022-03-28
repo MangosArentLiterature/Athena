@@ -1,0 +1,28 @@
+[Server]
+# The address to listen on. Leave blank to listen on any. If you don't know what you're doing, leave this blank.
+addr = ""
+
+# The port to listen for connections on.
+port = 27016
+
+# The name of your server. This is used both on the server list, and within the server.
+name = "Unnamed Server"
+
+# The description of your server.
+description = "A brand new server!"
+
+# The maximum amount of players who can join the server at once.
+max_players = 100
+
+# The maximum amount of bytes that players can send in a message. Long messages can slow down clients, 
+# so don't make this too large.
+max_message_length = 256
+
+[MasterServer]
+
+# Whether or not to advertise your server on the master server, which will make it discoverable by players.
+# If you want to keep your server private, set this as false.
+advertise = false
+
+# The address of the master server. You shouldn't change this unless you know what you're doing.
+addr = "https://servers.aceattorneyonline.com/servers"
