@@ -19,46 +19,60 @@ package athena
 import (
 	"bufio"
 	"bytes"
-	"container/heap"
+	"crypto/md5"
+	"encoding/base64"
 	"fmt"
-	"log"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MangosArentLiterature/Athena/internal/area"
+	"github.com/MangosArentLiterature/Athena/internal/logger"
 	"github.com/MangosArentLiterature/Athena/internal/packet"
 )
 
 type Client struct {
-	Conn    net.Conn
-	Hdid    string
-	Version string
-	Uid     int
-	Area    *area.Area
-	Char    int
+	mu      sync.Mutex
+	conn    net.Conn
+	hdid    string
+	version string
+	uid     int
+	area    *area.Area
+	char    int
+	ipid    string
+	oocName string
+	lastmsg string
 }
 
 // Returns a new client
-func NewClient(conn net.Conn) *Client {
+func newClient(conn net.Conn) *Client {
 	return &Client{
-		Conn: conn,
-		Uid:  -1,
-		Char: -1,
+		conn: conn,
+		uid:  -1,
+		char: -1,
 	}
 }
 
 // Handle client handles a client connection to the server
-func (client *Client) HandleClient() {
+func (client *Client) handleClient() {
 	defer client.clientCleanup()
 	go timeout(client)
 
-	clientsMu.Lock()
-	clients[client] = struct{}{}
-	clientsMu.Unlock()
+	clients.AddClient(client)
 
-	client.Conn.Write([]byte("decryptor#NOENCRYPT#%")) // Relic of FantaCrypt. AO2 requires this to be sent. Old client versions use NOENCRYPT to disable FantaCrypt.
-	input := bufio.NewScanner(client.Conn)
+	// For privacy and ease of use, AO servers traditionally use a hashed version of a client's IP address to identify a client.
+	// Athena uses the MD5 hash of the IP address, encoded in base64.
+	addr := strings.Split(client.conn.RemoteAddr().String(), ":")
+	hash := md5.Sum([]byte(strings.Join(addr[:len(addr)-1], ":")))
+	client.ipid = base64.StdEncoding.EncodeToString(hash[:])
+	client.ipid = client.ipid[:len(client.ipid)-2] // Removes the trailing padding.
+
+	logger.LogDebugf("%v connected", client.ipid)
+
+	client.write("decryptor#NOENCRYPT#%") // Relic of FantaCrypt. AO2 requires a server to send this to proceed with the handshake.
+	input := bufio.NewScanner(client.conn)
+
 	splitfn := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		if atEOF && len(data) == 0 {
 			return 0, nil, nil
@@ -74,62 +88,53 @@ func (client *Client) HandleClient() {
 	input.Split(splitfn) // Split input when a packet delimiter ('%') is found
 
 	for input.Scan() {
-		if verbose {
-			log.Printf("from %v: %v\n", client.Conn.LocalAddr().String(), strings.TrimSpace(input.Text()))
+		if logger.DebugNetwork {
+			logger.LogDebugf("From %v: %v", client.ipid, strings.TrimSpace(input.Text()))
 		}
 		packet, err := packet.NewPacket(strings.TrimSpace(input.Text()))
 		if err != nil {
 			continue // Discard invalid packets
 		}
-		v := PacketMap[packet.Header]
+		v := PacketMap[packet.Header] // Check if this is a known packet.
 		if v.Func != nil && len(packet.Body) >= v.Args {
-			if v.MustJoin && client.Uid == -1 {
+			if v.MustJoin && client.uid == -1 {
 				return
 			}
 			v.Func(client, packet)
 		}
 	}
-	if verbose {
-		log.Printf("%v disconnected\n", client.Conn.RemoteAddr().String())
+	logger.LogDebugf("%v disconnected", client.ipid)
+}
+
+func (client *Client) write(message string) {
+	client.mu.Lock()
+	fmt.Fprint(client.conn, message)
+	if logger.DebugNetwork {
+		logger.LogDebugf("To %v: %v", client.ipid, message)
 	}
+	client.mu.Unlock()
 }
 
 // Cleans up a disconnected client
 func (client *Client) clientCleanup() {
-	if client.Uid != -1 {
-		client.releaseUid()
-		playerCountMu.Lock()
-		playerCount--
-		playerCountMu.Unlock()
-		client.Area.Leave(client.Char)
+	if client.uid != -1 {
+		logger.LogInfof("Client (IPID:%v UID:%v) left the server", client.ipid, client.uid)
+		uids.ReleaseUid(client.uid)
+		players.RemovePlayer()
+		client.area.RemoveChar(client.char)
 		sendPlayerArup()
 	}
-	client.Conn.Close()
-	clientsMu.Lock()
-	delete(clients, client)
-	clientsMu.Unlock()
-}
-
-func (client *Client) takeUid() {
-	uidsMu.Lock()
-	client.Uid = heap.Pop(&uids).(int)
-	uidsMu.Unlock()
-}
-
-func (client *Client) releaseUid() {
-	uidsMu.Lock()
-	heap.Push(&uids, client.Uid)
-	uidsMu.Unlock()
-	client.Uid = -1
+	client.conn.Close()
+	clients.RemoveClient(client)
 }
 
 func (client *Client) sendServerMessage(message string) {
-	fmt.Fprintf(client.Conn, "CT#%v#%v#1#%%", config.Name, message)
+	client.write(fmt.Sprintf("CT#%v#%v#1#%%", config.Name, message))
 }
 
 func timeout(client *Client) {
 	time.Sleep(1 * time.Minute)
-	if client.Uid == -1 {
-		client.Conn.Close()
+	if client.uid == -1 {
+		client.conn.Close()
 	}
 }

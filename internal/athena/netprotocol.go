@@ -17,10 +17,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package athena
 
 import (
+	"crypto/md5"
+	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
 
+	"github.com/MangosArentLiterature/Athena/internal/logger"
 	"github.com/MangosArentLiterature/Athena/internal/packet"
 	"github.com/MangosArentLiterature/Athena/internal/sliceutil"
 )
@@ -55,87 +58,96 @@ var PacketMap = map[string]pktMapValue{
 
 // Handles HI#%
 func pktHdid(client *Client, p *packet.Packet) {
-	if strings.TrimSpace(p.Body[0]) == "" || client.Uid != -1 {
+	if strings.TrimSpace(p.Body[0]) == "" || client.uid != -1 {
 		return
 	}
-	client.Hdid = p.Body[0]
-	fmt.Fprintf(client.Conn, "ID#0#Athena#%v#%%", version) // Why does the client need this? Nobody knows.
+
+	// Athena does not store the client's raw HDID, but rather, it's MD5 hash.
+	// This is done not only for privacy reasons, but to ensure stored HDIDs will be a reasonable length.
+	hash := md5.Sum([]byte(p.Body[0]))
+	client.hdid = base64.StdEncoding.EncodeToString(hash[:])
+	client.write(fmt.Sprintf("ID#0#Athena#%v#%%", version)) // Why does the client need this? Nobody knows.
 }
 
 // Handles ID#%
 func pktId(client *Client, p *packet.Packet) {
-	if client.Uid != -1 {
+	if client.uid != -1 {
 		return
 	}
-	client.Version = p.Body[1]
-	fmt.Fprintf(client.Conn, "PN#%v#%v#%v#%%", getPlayerCount(), config.MaxPlayers, config.Desc)
+	client.version = p.Body[1]
+	client.write(fmt.Sprintf("PN#%v#%v#%v#%%", players.GetPlayerCount(), config.MaxPlayers, config.Desc))
 	// god this is cursed
-	fmt.Fprint(client.Conn, "FL#noencryption#yellowtext#prezoom#flipping#customobjections#fastloading#deskmod#evidence#cccc_ic_support#arup#casing_alerts#looping_sfx#additive#effects#y_offset#expanded_desk_mods#auth_packet#%")
+	client.write("FL#noencryption#yellowtext#prezoom#flipping#customobjections#fastloading#deskmod#evidence#cccc_ic_support#arup#casing_alerts#looping_sfx#additive#effects#y_offset#expanded_desk_mods#auth_packet#%")
 }
 
 // Handles askchaa#%
 func pktResCount(client *Client, _ *packet.Packet) {
-	if getPlayerCount() >= config.MaxPlayers {
-		fmt.Fprint(client.Conn, "BD#This server is full#%")
-		client.Conn.Close()
+	if client.uid != -1 {
 		return
 	}
-	fmt.Fprintf(client.Conn, "SI#%v#%v#%v#%%", len(characters), 0, len(music))
+	if players.GetPlayerCount() >= config.MaxPlayers {
+		logger.LogInfo("Player limit reached")
+		client.write("BD#This server is full#%")
+		client.conn.Close()
+		return
+	}
+	client.write(fmt.Sprintf("SI#%v#%v#%v#%%", len(characters), 0, len(music)))
 }
 
 // Handles RC#%
 func pktReqChar(client *Client, _ *packet.Packet) {
-	fmt.Fprintf(client.Conn, "SC#%v#%%", strings.Join(characters, "#"))
+	client.write(fmt.Sprintf("SC#%v#%%", strings.Join(characters, "#")))
 }
 
 // Handles RM#%
 func pktReqAM(client *Client, _ *packet.Packet) {
-	fmt.Fprintf(client.Conn, "SM#%v#%v#%%", areaNames, strings.Join(music, "#"))
+	client.write(fmt.Sprintf("SM#%v#%v#%%", areaNames, strings.Join(music, "#")))
 }
 
 // Handles RD#%
 func pktReqDone(client *Client, _ *packet.Packet) {
-	if client.Uid != -1 {
+	if client.uid != -1 {
 		return
 	}
-	client.takeUid()
-	playerCountMu.Lock()
-	playerCount++
-	playerCountMu.Unlock()
-	client.Area = areas[0]
-	client.Area.Join(-1)
+	client.uid = uids.GetUid()
+	players.AddPlayer()
+	client.area = areas[0]
+	client.area.AddChar(-1)
 	sendPlayerArup()
-	def, pro := client.Area.GetHP()
-	fmt.Fprintf(client.Conn, "LE#%v#%%", strings.Join(client.Area.GetEvidence(), "#"))
-	fmt.Fprintf(client.Conn, "CharsCheck#%v#%%", strings.Join(client.Area.GetTaken(), "#"))
-	fmt.Fprintf(client.Conn, "HP#1#%v#%%", def)
-	fmt.Fprintf(client.Conn, "HP#2#%v#%%", pro)
-
-	fmt.Fprint(client.Conn, "DONE#%")
+	def, pro := client.area.GetHP()
+	client.write(fmt.Sprintf("LE#%v#%%", strings.Join(client.area.GetEvidence(), "#")))
+	client.write(fmt.Sprintf("CharsCheck#%v#%%", strings.Join(client.area.GetTaken(), "#")))
+	client.write(fmt.Sprintf("HP#1#%v#%%", def))
+	client.write(fmt.Sprintf("HP#2#%v#%%", pro))
+	logger.LogInfof("Client (IPID:%v UID:%v) joined the server", client.ipid, client.uid)
+	client.write("DONE#%")
 }
 
 // Handles CC#%
 func pktChangeChar(client *Client, p *packet.Packet) {
-	if client.Uid == -1 {
+	if client.uid == -1 {
 		return
 	}
 	newid, err := strconv.Atoi(p.Body[1])
 	if err != nil {
 		return
 	}
-	if client.Area.Switch(client.Char, newid) {
-		client.Char = newid
-		fmt.Fprintf(client.Conn, "PV#0#CID#%v#%%", newid)
+	if client.area.SwitchChar(client.char, newid) {
+		client.char = newid
+		client.write(fmt.Sprintf("PV#0#CID#%v#%%", newid))
+		writeToArea(fmt.Sprintf("CharsCheck#%v#%%", strings.Join(client.area.GetTaken(), "#")), client.area)
 	}
 }
 
 // Handles MS#%
 func pktIC(client *Client, p *packet.Packet) {
-	if client.Char == -1 {
-		client.sendServerMessage("You're a spectator, you can't chat here.")
+	p.Body[4] = strings.TrimSpace(p.Body[4])
+	if client.char == -1 {
 		return
 	} else if len(p.Body[4]) > config.MaxMsg {
 		client.sendServerMessage("Your message exceeds the maximum message length!")
+		return
+	} else if p.Body[4] == client.lastmsg {
 		return
 	}
 	args := len(p.Body)
@@ -155,7 +167,7 @@ func pktIC(client *Client, p *packet.Packet) {
 	}
 
 	// Validate char_id
-	if p.Body[8] != strconv.Itoa(client.Char) {
+	if p.Body[8] != strconv.Itoa(client.char) {
 		return
 	}
 
@@ -170,16 +182,17 @@ func pktIC(client *Client, p *packet.Packet) {
 			newPacket.Body = append(newPacket.Body, p.Body[19:]...)
 		}
 	}
-	writeToArea(newPacket.String(), client.Area)
+	client.lastmsg = p.Body[4]
+	writeToArea(newPacket.String(), client.area)
 }
 
 // Handles MC#%
 func pktAM(client *Client, p *packet.Packet) {
-	if client.Uid == -1 || strconv.Itoa(client.Char) != p.Body[1] {
+	if client.uid == -1 || strconv.Itoa(client.char) != p.Body[1] {
 		return
 	}
 
-	if sliceutil.Contains(music, p.Body[0]) && client.Char != -1 {
+	if sliceutil.Contains(music, p.Body[0]) && client.char != -1 {
 		song := p.Body[0]
 		effects := "0"
 		if !strings.ContainsRune(p.Body[0], '.') {
@@ -188,11 +201,21 @@ func pktAM(client *Client, p *packet.Packet) {
 		if len(p.Body) >= 4 {
 			effects = p.Body[3]
 		}
-		writeToArea(fmt.Sprintf("MC#%v#%v#%v#1#0#%v#%%", song, p.Body[1], p.Body[2], effects), client.Area)
+		writeToArea(fmt.Sprintf("MC#%v#%v#%v#1#0#%v#%%", song, p.Body[1], p.Body[2], effects), client.area)
 	} else if strings.Contains(areaNames, p.Body[0]) {
+		if p.Body[0] == client.area.Name {
+			return
+		}
 		for _, area := range areas {
-			if area.Name == p.Body[0] && area.Join(client.Char) {
-				client.Area = area
+			if area.Name == p.Body[0] && area.AddChar(client.char) {
+				client.area.RemoveChar(client.char)
+				client.area = area
+				def, pro := client.area.GetHP()
+				client.write(fmt.Sprintf("LE#%v#%%", strings.Join(client.area.GetEvidence(), "#")))
+				client.write(fmt.Sprintf("HP#1#%v#%%", def))
+				client.write(fmt.Sprintf("HP#2#%v#%%", pro))
+				sendPlayerArup()
+				writeToArea(fmt.Sprintf("CharsCheck#%v#%%", strings.Join(client.area.GetTaken(), "#")), client.area)
 			}
 		}
 	}
@@ -209,37 +232,43 @@ func pktHP(client *Client, p *packet.Packet) {
 	if err != nil {
 		return
 	}
-	if !client.Area.SetHP(bar, value) {
+	if !client.area.SetHP(bar, value) {
 		return
 	}
-	writeToArea(fmt.Sprintf("HP#%v#%%", p.Body[0]), client.Area)
+	writeToArea(fmt.Sprintf("HP#%v#%%", p.Body[0]), client.area)
 }
 
 // Handles RT#%
 func pktWTCE(client *Client, p *packet.Packet) {
-	if client.Uid == -1 {
+	if client.uid == -1 {
 		return
 	}
-	writeToArea(fmt.Sprintf("RT#%v#%%", p.Body[0]), client.Area)
+	writeToArea(fmt.Sprintf("RT#%v#%%", p.Body[0]), client.area)
 }
 
 // Handles CT#%
 func pktOOC(client *Client, p *packet.Packet) {
-	if strings.TrimSpace(p.Body[0]) == "" {
-		client.sendServerMessage("You can't send a message without a username!")
+	if strings.TrimSpace(p.Body[0]) == "" || p.Body[0] == config.Name {
+		client.sendServerMessage("Invalid username.")
 		return
 	} else if len(p.Body[1]) > config.MaxMsg {
 		client.sendServerMessage("Your message exceeds the maximum message length!")
 		return
 	}
-
-	writeToArea(fmt.Sprintf("CT#%v#%v#0#%%", p.Body[0], p.Body[1]), client.Area)
+	for c := range clients.GetClients() {
+		if c.oocName == p.Body[0] && c != client {
+			client.sendServerMessage("That username is already taken.")
+			return
+		}
+	}
+	client.oocName = p.Body[0]
+	writeToArea(fmt.Sprintf("CT#%v#%v#0#%%", p.Body[0], p.Body[1]), client.area)
 }
 
 // Handles PE#%
 func pktAddEvi(client *Client, p *packet.Packet) {
-	client.Area.AddEvidence(strings.Join(p.Body, "&"))
-	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.Area.GetEvidence(), "#")), client.Area)
+	client.area.AddEvidence(strings.Join(p.Body, "&"))
+	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.area.GetEvidence(), "#")), client.area)
 }
 
 // Handles DE#%
@@ -248,8 +277,8 @@ func pktRemoveEvi(client *Client, p *packet.Packet) {
 	if err != nil {
 		return
 	}
-	client.Area.RemoveEvidence(id)
-	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.Area.GetEvidence(), "#")), client.Area)
+	client.area.RemoveEvidence(id)
+	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.area.GetEvidence(), "#")), client.area)
 }
 
 // Handles EE#%
@@ -258,11 +287,11 @@ func pktEditEvi(client *Client, p *packet.Packet) {
 	if err != nil {
 		return
 	}
-	client.Area.EditEvidence(id, strings.Join(p.Body[1:], "&"))
-	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.Area.GetEvidence(), "#")), client.Area)
+	client.area.EditEvidence(id, strings.Join(p.Body[1:], "&"))
+	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.area.GetEvidence(), "#")), client.area)
 }
 
 // Handles CH#%
 func pktPing(client *Client, _ *packet.Packet) {
-	fmt.Fprint(client.Conn, "CHECK#%")
+	client.write("CHECK#%")
 }

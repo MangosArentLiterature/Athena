@@ -16,7 +16,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
 package area
 
-import "sync"
+import (
+	"strings"
+	"sync"
+)
 
 type Area struct {
 	AreaData
@@ -26,6 +29,7 @@ type Area struct {
 	defhp    int
 	prohp    int
 	evidence []string
+	buffer   []string
 }
 
 type AreaData struct {
@@ -33,19 +37,20 @@ type AreaData struct {
 }
 
 //Returns a new area
-func NewArea(data AreaData, charlen int) *Area {
+func NewArea(data AreaData, charlen int, bufsize int) *Area {
 	return &Area{
 		AreaData: data,
 		taken:    make([]bool, charlen),
 		defhp:    10,
 		prohp:    10,
+		buffer:   make([]string, bufsize),
 	}
 }
 
 // Returns the list of taken characters in an area, where "-1" is taken and "0" is free
 func (a *Area) GetTaken() []string {
 	a.mu.Lock()
-	takenList := make([]string, len(a.taken))
+	var takenList []string
 	for _, t := range a.taken {
 		if t {
 			takenList = append(takenList, "-1")
@@ -58,7 +63,7 @@ func (a *Area) GetTaken() []string {
 }
 
 // Adds a player with the specified character to the area. Returns whether the join was successful.
-func (a *Area) Join(char int) bool {
+func (a *Area) AddChar(char int) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if char != -1 {
@@ -73,7 +78,7 @@ func (a *Area) Join(char int) bool {
 }
 
 // Switches a player's character. Returns whether the switch was successful.
-func (a *Area) Switch(old int, new int) bool {
+func (a *Area) SwitchChar(old int, new int) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if new == -1 {
@@ -95,7 +100,7 @@ func (a *Area) Switch(old int, new int) bool {
 }
 
 // Removes a player with the specified character from the area.
-func (a *Area) Leave(char int) {
+func (a *Area) RemoveChar(char int) {
 	a.mu.Lock()
 	if char != -1 {
 		a.taken[char] = false
@@ -132,7 +137,7 @@ func (a *Area) SetHP(bar int, v int) bool {
 }
 
 // Returns the number of players in the area.
-func (a *Area) GetPlayers() int {
+func (a *Area) GetPlayerCount() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.players
@@ -169,4 +174,18 @@ func (a *Area) EditEvidence(id int, evi string) {
 		a.evidence[id] = evi
 	}
 	a.mu.Unlock()
+}
+
+func (a *Area) UpdateBuffer(s string) {
+	a.buffer = append(a.buffer[1:], s)
+}
+
+func (a *Area) GetBuffer() []string {
+	var returnList []string
+	for _, s := range a.buffer {
+		if strings.TrimSpace(s) != "" {
+			returnList = append(returnList, s)
+		}
+	}
+	return returnList
 }

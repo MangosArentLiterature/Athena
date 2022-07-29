@@ -19,9 +19,10 @@ package ms
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 	"net/http"
 	"time"
+
+	"github.com/MangosArentLiterature/Athena/internal/logger"
 )
 
 type Advertisement struct {
@@ -51,13 +52,13 @@ func Advertise(msUrl string, advert Advertisement, updatePlayers chan (int), don
 func postServer(msUrl string, advert Advertisement) {
 	data, err := json.Marshal(advert)
 	if err != nil {
-		log.Printf("athena: while posting advertisement: %v", err)
+		logger.LogErrorf("Failed to post advertisement: %v", err)
 		return
 	}
 
 	resp, err := http.Post(msUrl, "application/json", bytes.NewBuffer(data))
 	if err != nil {
-		log.Printf("athena: while posting advertisement: %v", err)
+		logger.LogErrorf("Failed to post advertisement: %v", err)
 		return
 	}
 	resp.Body.Close()

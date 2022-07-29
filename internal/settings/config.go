@@ -42,6 +42,7 @@ type ServerConfig struct {
 	Desc       string `toml:"description"`
 	MaxPlayers int    `toml:"max_players"`
 	MaxMsg     int    `toml:"max_message_length"`
+	BufSize    int    `toml:"log_buffer_size"`
 }
 type MSConfig struct {
 	Advertise bool   `toml:"advertise"`
@@ -58,6 +59,7 @@ func defaultConfig() *Config {
 			Desc:       "",
 			MaxPlayers: 100,
 			MaxMsg:     256,
+			BufSize:    500,
 		},
 		MSConfig{
 			Advertise: false,

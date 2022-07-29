@@ -17,76 +17,69 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package athena
 
 import (
-	"container/heap"
 	"fmt"
-	"log"
 	"net"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/MangosArentLiterature/Athena/internal/area"
+	"github.com/MangosArentLiterature/Athena/internal/db"
+	"github.com/MangosArentLiterature/Athena/internal/logger"
 	"github.com/MangosArentLiterature/Athena/internal/ms"
+	"github.com/MangosArentLiterature/Athena/internal/playercount"
 	"github.com/MangosArentLiterature/Athena/internal/settings"
-	"github.com/MangosArentLiterature/Athena/internal/uidheap"
+	"github.com/MangosArentLiterature/Athena/internal/uidmanager"
 )
 
 const version = "0.1.0"
 
-var verbose bool
-var config *settings.Config
-var playerCountMu sync.Mutex
-var playerCount int
-var clientsMu sync.Mutex
-var clients = make(map[*Client]struct{})
-var characters []string
-var music []string
-var areas []*area.Area
-var areaNames string
-var uidsMu sync.Mutex
-var uids uidheap.UidHeap
-var updatePlayers = make(chan int)
-var advertDone = make(chan struct{})
+var (
+	config            *settings.Config
+	characters, music []string
+	areas             []*area.Area
+	areaNames         string
+	uids              uidmanager.UidManager
+	players           playercount.PlayerCount
+	clients           ClientList = ClientList{list: make(map[*Client]struct{})}
+	updatePlayers                = make(chan int)
+	advertDone                   = make(chan struct{})
+	FatalError                   = make(chan error)
+)
 
-func InitServer(conf *settings.Config, setVerbose bool) {
-	uids = make(uidheap.UidHeap, conf.MaxPlayers)
-	for i := range uids {
-		uids[i] = i
-	}
-	heap.Init(&uids)
+func InitServer(conf *settings.Config) error {
+	db.Open()
+	uids.InitHeap(conf.MaxPlayers)
 	config = conf
-	verbose = setVerbose
 
 	var err error
 	music, err = settings.LoadMusic()
 	if err != nil {
-		log.Fatalf("athena: while loading music: %v\n", err)
+		return err
 	}
 	characters, err = settings.LoadCharacters()
 	if err != nil {
-		log.Fatalf("athena: while loading characters: %v\n", err)
+		return err
 	}
 	areaData, err := settings.LoadAreas()
 	if err != nil {
-		log.Fatalf("athena: while loading areas: %v\n", err)
+		return err
 	}
 
 	for _, a := range areaData {
 		areaNames += a.Name + "#"
-		areas = append(areas, area.NewArea(a, len(characters)))
+		areas = append(areas, area.NewArea(a, len(characters), conf.BufSize))
 	}
 	areaNames = strings.TrimSuffix(areaNames, "#")
 
 	if config.Advertise {
-		playerCountMu.Lock()
 		advert := ms.Advertisement{
 			Port:    config.Port,
-			Players: playerCount,
+			Players: players.GetPlayerCount(),
 			Name:    config.Name,
 			Desc:    config.Desc}
-		playerCountMu.Unlock()
 		go ms.Advertise(config.MSAddr, advert, updatePlayers, advertDone)
 	}
+	return nil
 }
 
 // Starts the server's TCP listener.
@@ -94,56 +87,53 @@ func ListenTCP() {
 	listener, err := net.Listen("tcp", config.Addr+":"+strconv.Itoa(config.Port))
 
 	if err != nil {
-		log.Fatalf("athena: failed to start server: %v\n", err)
+		FatalError <- err
+		return
 	}
 
 	defer listener.Close()
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Printf("athena: %v", err)
+			logger.LogWarning(err.Error())
 		}
-		if verbose {
-			log.Printf("athena: connection from %v\n", conn.RemoteAddr().String())
+		if logger.DebugNetwork {
+			logger.LogDebugf("Connection recieved from %v", conn.RemoteAddr())
 		}
-		client := NewClient(conn)
-		go client.HandleClient()
+		client := newClient(conn)
+		go client.handleClient()
 	}
 }
 
 // Sends a message to all connected clients.
 func writeToAll(message string) {
-	clientsMu.Lock()
-	for client := range clients {
-		fmt.Fprint(client.Conn, message)
+	for client := range clients.GetClients() {
+		client.write(message)
 	}
-	clientsMu.Unlock()
 }
 
 // Sends a message to all clients in an area.
 func writeToArea(message string, area *area.Area) {
-	clientsMu.Lock()
-	for client := range clients {
-		if client.Area == area {
-			fmt.Fprint(client.Conn, message)
+	for client := range clients.GetClients() {
+		if client.area == area {
+			client.write(message)
 		}
 	}
-	clientsMu.Unlock()
 }
 
 // Sends a player ARUP to all clients.
 func sendPlayerArup() {
 	var plCounts []string
 	for _, a := range areas {
-		s := strconv.Itoa(a.GetPlayers())
+		s := strconv.Itoa(a.GetPlayerCount())
 		plCounts = append(plCounts, s)
 	}
 	writeToAll(fmt.Sprintf("ARUP#0#%v#%%", strings.Join(plCounts, "#")))
 }
 
-// Returns the server's player count.
-func getPlayerCount() int {
-	playerCountMu.Lock()
-	defer playerCountMu.Unlock()
-	return playerCount
+func CleanupServer() {
+	for client := range clients.GetClients() {
+		client.conn.Close()
+	}
+	db.Close()
 }
