@@ -49,6 +49,7 @@ var (
 	DebugNetwork bool
 )
 
+// log writes a message to standard output if the level matches the server's set log level.
 func log(level LogLevel, s string) {
 	if level < CurrentLevel {
 		return
@@ -98,6 +99,7 @@ func LogFatalf(format string, v ...interface{}) {
 	log(Fatal, fmt.Sprintf(format, v...))
 }
 
+// WriteReport flushes a given area buffer to a report file.
 func WriteReport(name string, buffer []string) {
 	fileLock.Lock()
 	err := os.WriteFile(fmt.Sprintf("report-%v-%v.log", time.Now().UTC().Format("2006-01-02T150405Z"), name), []byte(strings.Join(buffer, "\n")), 0755)

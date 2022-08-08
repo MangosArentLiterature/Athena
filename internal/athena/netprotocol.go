@@ -20,6 +20,7 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -64,7 +65,7 @@ func pktHdid(client *Client, p *packet.Packet) {
 
 	// Athena does not store the client's raw HDID, but rather, it's MD5 hash.
 	// This is done not only for privacy reasons, but to ensure stored HDIDs will be a reasonable length.
-	hash := md5.Sum([]byte(p.Body[0]))
+	hash := md5.Sum([]byte(decode(p.Body[0])))
 	client.hdid = base64.StdEncoding.EncodeToString(hash[:])
 	client.write(fmt.Sprintf("ID#0#Athena#%v#%%", version)) // Why does the client need this? Nobody knows.
 }
@@ -75,7 +76,7 @@ func pktId(client *Client, p *packet.Packet) {
 		return
 	}
 	client.version = p.Body[1]
-	client.write(fmt.Sprintf("PN#%v#%v#%v#%%", players.GetPlayerCount(), config.MaxPlayers, config.Desc))
+	client.write(fmt.Sprintf("PN#%v#%v#%v#%%", players.GetPlayerCount(), config.MaxPlayers, encode(config.Desc)))
 	// god this is cursed
 	client.write("FL#noencryption#yellowtext#prezoom#flipping#customobjections#fastloading#deskmod#evidence#cccc_ic_support#arup#casing_alerts#looping_sfx#additive#effects#y_offset#expanded_desk_mods#auth_packet#%")
 }
@@ -203,11 +204,11 @@ func pktAM(client *Client, p *packet.Packet) {
 		}
 		writeToArea(fmt.Sprintf("MC#%v#%v#%v#1#0#%v#%%", song, p.Body[1], p.Body[2], effects), client.area)
 	} else if strings.Contains(areaNames, p.Body[0]) {
-		if p.Body[0] == client.area.Name {
+		if decode(p.Body[0]) == client.area.Name {
 			return
 		}
 		for _, area := range areas {
-			if area.Name == p.Body[0] && area.AddChar(client.char) {
+			if area.Name == decode(p.Body[0]) && area.AddChar(client.char) {
 				client.area.RemoveChar(client.char)
 				client.area = area
 				def, pro := client.area.GetHP()
@@ -248,7 +249,8 @@ func pktWTCE(client *Client, p *packet.Packet) {
 
 // Handles CT#%
 func pktOOC(client *Client, p *packet.Packet) {
-	if strings.TrimSpace(p.Body[0]) == "" || p.Body[0] == config.Name {
+	dname := decode(strings.TrimSpace(p.Body[0]))
+	if dname == "" || dname == config.Name {
 		client.sendServerMessage("Invalid username.")
 		return
 	} else if len(p.Body[1]) > config.MaxMsg {
@@ -261,8 +263,18 @@ func pktOOC(client *Client, p *packet.Packet) {
 			return
 		}
 	}
-	client.oocName = p.Body[0]
-	writeToArea(fmt.Sprintf("CT#%v#%v#0#%%", p.Body[0], p.Body[1]), client.area)
+	client.oocName = dname
+
+	if strings.HasPrefix(p.Body[1], "/") {
+		decoded := decode(p.Body[1])
+		regex := regexp.MustCompile("^/[a-z]+")
+		command := strings.TrimPrefix(regex.FindString(decoded), "/")
+		args := strings.Split(strings.Join(regex.Split(decoded, 1), ""), " ")[1:]
+		ParseCommand(client, command, args)
+		return
+	}
+
+	writeToArea(fmt.Sprintf("CT#%v#%v#0#%%", encode(client.oocName), p.Body[1]), client.area)
 }
 
 // Handles PE#%
@@ -294,4 +306,14 @@ func pktEditEvi(client *Client, p *packet.Packet) {
 // Handles CH#%
 func pktPing(client *Client, _ *packet.Packet) {
 	client.write("CHECK#%")
+}
+
+// decode returns a given string as a decoded AO2 string.
+func decode(s string) string {
+	return strings.NewReplacer("<percent>", "%", "<num>", "#", "<dollar>", "$", "<and>", "&").Replace(s)
+}
+
+// encode returns a string encoded AO2 string.
+func encode(s string) string {
+	return strings.NewReplacer("%", "<percent>", "#", "<num>", "$", "<dollar>", "&", "<and>").Replace(s)
 }

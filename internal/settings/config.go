@@ -25,6 +25,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/MangosArentLiterature/Athena/internal/area"
+	"github.com/MangosArentLiterature/Athena/internal/permissions"
 )
 
 // Stores the path to the config directory
@@ -59,29 +60,13 @@ func defaultConfig() *Config {
 			Desc:       "",
 			MaxPlayers: 100,
 			MaxMsg:     256,
-			BufSize:    500,
+			BufSize:    150,
 		},
 		MSConfig{
 			Advertise: false,
 			MSAddr:    "https://servers.aceattorneyonline.com/servers",
 		},
 	}
-}
-
-// Saves the configuration to config/config.toml.
-func (conf *Config) Save() error {
-	f, err := os.OpenFile(ConfigPath+"/config.toml", os.O_RDWR|os.O_CREATE, 0755)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	encoder := toml.NewEncoder(f)
-
-	err = encoder.Encode(conf)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // Loads the configuation from config/config.toml.
@@ -156,5 +141,19 @@ func LoadAreas() ([]area.AreaData, error) {
 	if len(conf.Area) == 0 {
 		return conf.Area, fmt.Errorf("empty arealist")
 	}
-	return conf.Area, err
+	return conf.Area, nil
+}
+
+func LoadRoles() ([]permissions.Role, error) {
+	var conf struct {
+		Role []permissions.Role
+	}
+	_, err := toml.DecodeFile(ConfigPath+"/roles.toml", &conf)
+	if err != nil {
+		return conf.Role, err
+	}
+	if len(conf.Role) == 0 {
+		return conf.Role, fmt.Errorf("empty rolelist")
+	}
+	return conf.Role, nil
 }

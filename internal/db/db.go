@@ -18,13 +18,17 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
+	"strconv"
 
+	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite"
 )
 
 var DBPath string
 var db *sql.DB
 
+// Opens the server's database connection.
 func Open() error {
 	var err error
 	db, err = sql.Open("sqlite", DBPath)
@@ -35,9 +39,68 @@ func Open() error {
 	if err != nil {
 		return err
 	}
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS USERS(USERNAME TEXT PRIMARY KEY, PASSWORD TEXT, PERMISSIONS TEXT)")
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
+// UserExists returns whether a user exists within the server's database.
+func UserExists(username string) bool {
+	result := db.QueryRow("SELECT USERNAME FROM USERS WHERE USERNAME = ?", username)
+	if result.Scan() == sql.ErrNoRows {
+		return false
+	} else {
+		return true
+	}
+}
+
+// CreateUser adds a new user to the server's database, returning an error if the user already exists.
+func CreateUser(username string, password []byte, permissions uint64) error {
+	if UserExists(username) {
+		return fmt.Errorf("username already exists")
+	}
+	hashed, err := bcrypt.GenerateFromPassword(password, 12)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec("INSERT INTO USERS VALUES(?, ?, ?)", username, hashed, strconv.FormatUint(permissions, 10))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// RemoveUser deletes a user from the server's database, returning an error if the user doesn't exist.
+func RemoveUser(username string) error {
+	if !UserExists(username) {
+		return fmt.Errorf("user does not exist")
+	}
+	_, err := db.Exec("DELETE FROM USERS WHERE USERNAME = ?", username)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// AuthenticateUser returns whether or not the user's credentials match those in the databse, and that user's permissions.
+func AuthenticateUser(username string, password []byte) (bool, uint64) {
+	var rpass, rperms string
+	result := db.QueryRow("SELECT PASSWORD, PERMISSIONS FROM USERS WHERE USERNAME = ?", username)
+	result.Scan(&rpass, &rperms)
+	err := bcrypt.CompareHashAndPassword([]byte(rpass), password)
+	if err != nil {
+		return false, 0
+	}
+	p, err := strconv.ParseUint(rperms, 10, 64)
+	if err != nil {
+		return false, 0
+	}
+	return true, p
+}
+
+// Closes the server's database connection.
 func Close() {
 	db.Close()
 }

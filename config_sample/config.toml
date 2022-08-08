@@ -18,6 +18,10 @@ max_players = 100
 # so don't make this too large.
 max_message_length = 256
 
+# Sets the number of actions (IC chat messages, OOC chat messages, judge actions, etc.) each area should store.
+# When a user calls a mod, this buffer will be flushed to a report file for review.
+log_buffer_size = 150
+
 [MasterServer]
 
 # Whether or not to advertise your server on the master server, which will make it discoverable by players.

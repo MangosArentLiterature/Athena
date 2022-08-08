@@ -30,13 +30,14 @@ type Area struct {
 	prohp    int
 	evidence []string
 	buffer   []string
+	cms      []int
 }
 
 type AreaData struct {
 	Name string `toml:"name"`
 }
 
-//Returns a new area
+// Returns a new area
 func NewArea(data AreaData, charlen int, bufsize int) *Area {
 	return &Area{
 		AreaData: data,
@@ -188,4 +189,37 @@ func (a *Area) GetBuffer() []string {
 		}
 	}
 	return returnList
+}
+
+func (a *Area) GetCMs() []int {
+	return a.cms
+}
+
+func (a *Area) AddCM(uid int) bool {
+	for _, id := range a.cms {
+		if id == uid {
+			return false
+		}
+	}
+	a.cms = append(a.cms, uid)
+	return true
+}
+
+func (a *Area) RemoveCM(uid int) bool {
+	for i, id := range a.cms {
+		if id == uid {
+			a.cms = append(a.cms[:i], a.cms[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+func (a *Area) HasCM(uid int) bool {
+	for _, id := range a.cms {
+		if id == uid {
+			return true
+		}
+	}
+	return false
 }

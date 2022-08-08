@@ -26,6 +26,7 @@ import (
 	"github.com/MangosArentLiterature/Athena/internal/db"
 	"github.com/MangosArentLiterature/Athena/internal/logger"
 	"github.com/MangosArentLiterature/Athena/internal/ms"
+	"github.com/MangosArentLiterature/Athena/internal/permissions"
 	"github.com/MangosArentLiterature/Athena/internal/playercount"
 	"github.com/MangosArentLiterature/Athena/internal/settings"
 	"github.com/MangosArentLiterature/Athena/internal/uidmanager"
@@ -38,6 +39,7 @@ var (
 	characters, music []string
 	areas             []*area.Area
 	areaNames         string
+	roles             []permissions.Role
 	uids              uidmanager.UidManager
 	players           playercount.PlayerCount
 	clients           ClientList = ClientList{list: make(map[*Client]struct{})}
@@ -46,6 +48,7 @@ var (
 	FatalError                   = make(chan error)
 )
 
+// InitServer initalizes the server's database, uids, configs, and advertiser.
 func InitServer(conf *settings.Config) error {
 	db.Open()
 	uids.InitHeap(conf.MaxPlayers)
@@ -65,12 +68,16 @@ func InitServer(conf *settings.Config) error {
 		return err
 	}
 
+	roles, err = settings.LoadRoles()
+	if err != nil {
+		return err
+	}
+
 	for _, a := range areaData {
 		areaNames += a.Name + "#"
 		areas = append(areas, area.NewArea(a, len(characters), conf.BufSize))
 	}
 	areaNames = strings.TrimSuffix(areaNames, "#")
-
 	if config.Advertise {
 		advert := ms.Advertisement{
 			Port:    config.Port,
@@ -82,7 +89,7 @@ func InitServer(conf *settings.Config) error {
 	return nil
 }
 
-// Starts the server's TCP listener.
+// ListenTCP starts the server's TCP listener.
 func ListenTCP() {
 	listener, err := net.Listen("tcp", config.Addr+":"+strconv.Itoa(config.Port))
 
@@ -105,14 +112,14 @@ func ListenTCP() {
 	}
 }
 
-// Sends a message to all connected clients.
+// writeToAll sends a message to all connected clients.
 func writeToAll(message string) {
 	for client := range clients.GetClients() {
 		client.write(message)
 	}
 }
 
-// Sends a message to all clients in an area.
+// writeToArea sends a message to all clients in a given area.
 func writeToArea(message string, area *area.Area) {
 	for client := range clients.GetClients() {
 		if client.area == area {
@@ -121,7 +128,7 @@ func writeToArea(message string, area *area.Area) {
 	}
 }
 
-// Sends a player ARUP to all clients.
+// sendPlayerArup sends a player ARUP update to all connected clients.
 func sendPlayerArup() {
 	var plCounts []string
 	for _, a := range areas {
@@ -131,6 +138,17 @@ func sendPlayerArup() {
 	writeToAll(fmt.Sprintf("ARUP#0#%v#%%", strings.Join(plCounts, "#")))
 }
 
+// getRole returns the role with the corresponding name, or an error if the role does not exist.
+func getRole(name string) (permissions.Role, error) {
+	for _, role := range roles {
+		if role.Name == name {
+			return role, nil
+		}
+	}
+	return permissions.Role{}, fmt.Errorf("role does not exist")
+}
+
+// CleanupServer closes all connections to the server, and closes the server's database.
 func CleanupServer() {
 	for client := range clients.GetClients() {
 		client.conn.Close()

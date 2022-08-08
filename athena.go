@@ -31,9 +31,10 @@ import (
 )
 
 var (
-	configFlag = flag.String("c", "", "path to config directory")
-	reportFlag = flag.String("r", "", "path to report directory")
-	logFlag    = flag.String("l", "info", "log level to use")
+	configFlag   = flag.String("c", "", "path to config directory")
+	reportFlag   = flag.String("r", "", "path to report directory")
+	logFlag      = flag.String("l", "info", "log level to use")
+	netDebugFlag = flag.Bool("netdebug", false, "log raw network traffic")
 )
 
 func main() {
@@ -60,6 +61,7 @@ func main() {
 	case "error", "e":
 		logger.CurrentLevel = logger.Error
 	}
+	logger.DebugNetwork = *netDebugFlag
 
 	db.DBPath = settings.ConfigPath + "/athena.db"
 	config, err := settings.GetConfig()
@@ -75,7 +77,7 @@ func main() {
 	}
 
 	go athena.ListenTCP()
-
+	go athena.ListenInput()
 	stop := make(chan (os.Signal), 2)
 	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	select {

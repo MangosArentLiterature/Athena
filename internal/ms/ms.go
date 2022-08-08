@@ -32,7 +32,7 @@ type Advertisement struct {
 	Desc    string `json:"description"`
 }
 
-// Begins advertising to the master server.
+// Advertise begins the server's advertising routine.
 func Advertise(msUrl string, advert Advertisement, updatePlayers chan (int), done chan (struct{})) {
 	postServer(msUrl, advert)
 	ticker := time.NewTicker(5 * time.Minute)
@@ -48,7 +48,7 @@ func Advertise(msUrl string, advert Advertisement, updatePlayers chan (int), don
 	}
 }
 
-// Sends an advertisement to the master server.
+// postServer sends an advertisement to the master server.
 func postServer(msUrl string, advert Advertisement) {
 	data, err := json.Marshal(advert)
 	if err != nil {

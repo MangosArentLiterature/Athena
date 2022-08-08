@@ -33,19 +33,22 @@ import (
 )
 
 type Client struct {
-	mu      sync.Mutex
-	conn    net.Conn
-	hdid    string
-	version string
-	uid     int
-	area    *area.Area
-	char    int
-	ipid    string
-	oocName string
-	lastmsg string
+	mu            sync.Mutex
+	conn          net.Conn
+	hdid          string
+	version       string
+	uid           int
+	area          *area.Area
+	char          int
+	ipid          string
+	oocName       string
+	lastmsg       string
+	perms         uint64
+	authenticated bool
+	mod_name      string
 }
 
-// Returns a new client
+// Returns a new client.
 func newClient(conn net.Conn) *Client {
 	return &Client{
 		conn: conn,
@@ -54,7 +57,7 @@ func newClient(conn net.Conn) *Client {
 	}
 }
 
-// Handle client handles a client connection to the server
+// handleClient handles a client connection to the server.
 func (client *Client) handleClient() {
 	defer client.clientCleanup()
 	go timeout(client)
@@ -106,6 +109,7 @@ func (client *Client) handleClient() {
 	logger.LogDebugf("%v disconnected", client.ipid)
 }
 
+// Writes a string to the client's network socket.
 func (client *Client) write(message string) {
 	client.mu.Lock()
 	fmt.Fprint(client.conn, message)
@@ -115,7 +119,7 @@ func (client *Client) write(message string) {
 	client.mu.Unlock()
 }
 
-// Cleans up a disconnected client
+// clientClenup cleans up a disconnected client.
 func (client *Client) clientCleanup() {
 	if client.uid != -1 {
 		logger.LogInfof("Client (IPID:%v UID:%v) left the server", client.ipid, client.uid)
@@ -128,10 +132,12 @@ func (client *Client) clientCleanup() {
 	clients.RemoveClient(client)
 }
 
+// sendServerMessage sends a server OOC message to the client.
 func (client *Client) sendServerMessage(message string) {
-	client.write(fmt.Sprintf("CT#%v#%v#1#%%", config.Name, message))
+	client.write(fmt.Sprintf("CT#%v#%v#1#%%", encode(config.Name), encode(message)))
 }
 
+// timeout closes an unjoined client's connection after 1 minute.
 func timeout(client *Client) {
 	time.Sleep(1 * time.Minute)
 	if client.uid == -1 {
