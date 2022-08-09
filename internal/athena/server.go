@@ -21,6 +21,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/MangosArentLiterature/Athena/internal/area"
 	"github.com/MangosArentLiterature/Athena/internal/db"
@@ -126,6 +127,16 @@ func writeToArea(message string, area *area.Area) {
 			client.write(message)
 		}
 	}
+}
+
+// writeToAreaBuffer writes to an area buffer according to a client's action.
+func writeToAreaBuffer(client *Client, action string, message string) {
+	var auth string
+	if client.authenticated {
+		auth = " (*)"
+	}
+	client.area.UpdateBuffer(fmt.Sprintf("[%v] [%v] %v%v (%v) %v: %v", time.Now().Format("15:04:05"), action,
+		client.currentCharacter(), auth, client.ipid, client.oocName, message))
 }
 
 // sendPlayerArup sends a player ARUP update to all connected clients.

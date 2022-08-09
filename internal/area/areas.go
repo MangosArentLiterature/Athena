@@ -180,16 +180,20 @@ func (a *Area) EditEvidence(id int, evi string) {
 }
 
 func (a *Area) UpdateBuffer(s string) {
+	a.mu.Lock()
 	a.buffer = append(a.buffer[1:], s)
+	a.mu.Unlock()
 }
 
 func (a *Area) GetBuffer() []string {
 	var returnList []string
+	a.mu.Lock()
 	for _, s := range a.buffer {
 		if strings.TrimSpace(s) != "" {
 			returnList = append(returnList, s)
 		}
 	}
+	a.mu.Unlock()
 	return returnList
 }
 
