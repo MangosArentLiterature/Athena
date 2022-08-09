@@ -17,10 +17,20 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 // Package sliceutil provides functions for common slice operations.
 package sliceutil
 
-// Contains checks if a substring is within a string slice.
-func Contains(container []string, substring string) bool {
-	for _, s := range container {
-		if s == substring {
+// ContainsString checks if a string is within a string slice.
+func ContainsString(container []string, value string) bool {
+	for _, x := range container {
+		if x == value {
+			return true
+		}
+	}
+	return false
+}
+
+// ContainsString checks if an int is within an int slice.
+func ContainsInt(container []int, value int) bool {
+	for _, x := range container {
+		if x == value {
 			return true
 		}
 	}

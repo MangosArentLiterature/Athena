@@ -19,6 +19,8 @@ package area
 import (
 	"strings"
 	"sync"
+
+	"github.com/MangosArentLiterature/Athena/internal/sliceutil"
 )
 
 type Area struct {
@@ -196,10 +198,8 @@ func (a *Area) GetCMs() []int {
 }
 
 func (a *Area) AddCM(uid int) bool {
-	for _, id := range a.cms {
-		if id == uid {
-			return false
-		}
+	if sliceutil.ContainsInt(a.cms, uid) {
+		return false
 	}
 	a.cms = append(a.cms, uid)
 	return true
@@ -216,10 +216,5 @@ func (a *Area) RemoveCM(uid int) bool {
 }
 
 func (a *Area) HasCM(uid int) bool {
-	for _, id := range a.cms {
-		if id == uid {
-			return true
-		}
-	}
-	return false
+	return sliceutil.ContainsInt(a.cms, uid)
 }

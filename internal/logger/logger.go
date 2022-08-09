@@ -42,7 +42,7 @@ var (
 		Error:   "ERROR",
 		Fatal:   "FATAL",
 	}
-	ReportPath   string
+	LogPath      string
 	CurrentLevel LogLevel
 	outputLock   sync.Mutex
 	fileLock     sync.Mutex
@@ -102,9 +102,23 @@ func LogFatalf(format string, v ...interface{}) {
 // WriteReport flushes a given area buffer to a report file.
 func WriteReport(name string, buffer []string) {
 	fileLock.Lock()
-	err := os.WriteFile(fmt.Sprintf("report-%v-%v.log", time.Now().UTC().Format("2006-01-02T150405Z"), name), []byte(strings.Join(buffer, "\n")), 0755)
+	err := os.WriteFile(fmt.Sprintf("%v/report-%v-%v.log", LogPath, time.Now().UTC().Format("2006-01-02T150405Z"), name), []byte(strings.Join(buffer, "\n")), 0755)
 	if err != nil {
 		LogError(err.Error())
 	}
+	fileLock.Unlock()
+}
+
+func WriteAudit(s string) {
+	fileLock.Lock()
+	f, err := os.OpenFile(LogPath+"/audit.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0755)
+	if err != nil {
+		LogError(err.Error())
+	}
+	_, err = f.WriteString(s + "\n")
+	if err != nil {
+		LogError(err.Error())
+	}
+	f.Close()
 	fileLock.Unlock()
 }

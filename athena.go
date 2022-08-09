@@ -32,8 +32,8 @@ import (
 
 var (
 	configFlag   = flag.String("c", "", "path to config directory")
-	reportFlag   = flag.String("r", "", "path to report directory")
-	logFlag      = flag.String("l", "info", "log level to use")
+	logFlag      = flag.String("l", "", "path to report directory")
+	logLevelFlag = flag.String("ll", "info", "log level to use")
 	netDebugFlag = flag.Bool("netdebug", false, "log raw network traffic")
 )
 
@@ -45,13 +45,13 @@ func main() {
 		exe, _ := os.Executable()
 		settings.ConfigPath = path.Dir(exe) + "/config"
 	}
-	if *reportFlag != "" {
-		logger.ReportPath = path.Clean(*reportFlag)
+	if *logFlag != "" {
+		logger.LogPath = path.Clean(*logFlag)
 	} else {
 		exe, _ := os.Executable()
-		logger.ReportPath = path.Dir(exe) + "/reports"
+		logger.LogPath = path.Dir(exe) + "/logs"
 	}
-	switch strings.ToLower(*logFlag) {
+	switch strings.ToLower(*logLevelFlag) {
 	case "debug", "d":
 		logger.CurrentLevel = logger.Debug
 	case "info", "i":
@@ -75,7 +75,7 @@ func main() {
 		athena.CleanupServer()
 		os.Exit(1)
 	}
-
+	logger.LogInfo("Started server.")
 	go athena.ListenTCP()
 	go athena.ListenInput()
 	stop := make(chan (os.Signal), 2)
@@ -88,4 +88,5 @@ func main() {
 		break
 	}
 	athena.CleanupServer()
+	logger.LogInfo("Stopping server.")
 }

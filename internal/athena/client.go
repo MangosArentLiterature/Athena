@@ -137,6 +137,14 @@ func (client *Client) sendServerMessage(message string) {
 	client.write(fmt.Sprintf("CT#%v#%v#1#%%", encode(config.Name), encode(message)))
 }
 
+func (client *Client) currentCharacter() string {
+	if client.char == -1 {
+		return "Spectator"
+	} else {
+		return characters[client.char]
+	}
+}
+
 // timeout closes an unjoined client's connection after 1 minute.
 func timeout(client *Client) {
 	time.Sleep(1 * time.Minute)

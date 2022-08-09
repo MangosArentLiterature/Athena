@@ -38,7 +38,7 @@ type cmdPermValue struct {
 var commandperms = map[string]cmdPermValue{
 	"/help":  {permissions.PermissionField["NONE"], "List all valid commands."},
 	"/login": {permissions.PermissionField["NONE"], "Log in as moderator."},
-	"/mkusr": {permissions.PermissionField["CREATE_USER"], "Creates a new moderator user."},
+	"/mkusr": {permissions.PermissionField["ADMIN"], "Creates a new moderator user."},
 }
 
 // ParseCommand calls the appropriate function for a given command.
@@ -92,7 +92,7 @@ func cmdLogin(client *Client, args []string) {
 
 // Handles /mkusr.
 func cmdMakeUser(client *Client, args []string) {
-	if !permissions.HasPermission(client.perms, permissions.PermissionField["CREATE_USER"]) {
+	if !permissions.HasPermission(client.perms, permissions.PermissionField["ADMIN"]) {
 		client.sendServerMessage("You do not have permission to use this command.")
 		return
 	}

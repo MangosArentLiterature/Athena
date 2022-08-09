@@ -55,6 +55,7 @@ var PacketMap = map[string]pktMapValue{
 	"DE":      {0, true, pktRemoveEvi},
 	"EE":      {4, true, pktEditEvi},
 	"CH":      {0, false, pktPing},
+	"ZZ":      {0, true, pktModcall},
 }
 
 // Handles HI#%
@@ -78,7 +79,10 @@ func pktId(client *Client, p *packet.Packet) {
 	client.version = p.Body[1]
 	client.write(fmt.Sprintf("PN#%v#%v#%v#%%", players.GetPlayerCount(), config.MaxPlayers, encode(config.Desc)))
 	// god this is cursed
-	client.write("FL#noencryption#yellowtext#prezoom#flipping#customobjections#fastloading#deskmod#evidence#cccc_ic_support#arup#casing_alerts#looping_sfx#additive#effects#y_offset#expanded_desk_mods#auth_packet#%")
+	fl := []string{"noencryption", "yellowtext", "prezoom", "flipping", "customobjections",
+		"fastloading", "deskmod", "evidence", "cccc_ic_support", "arup", "casing_alerts",
+		"looping_sfx", "additive", "effects", "y_offset", "expanded_desk_mods", "auth_packet"}
+	client.write(fmt.Sprintf("FL#%v#%%", strings.Join(fl, "#")))
 }
 
 // Handles askchaa#%
@@ -155,7 +159,7 @@ func pktIC(client *Client, p *packet.Packet) {
 	newPacket, _ := packet.NewPacket("MS")
 
 	// Validate desk_mod
-	if !sliceutil.Contains([]string{"chat", "0", "1", "2", "3", "4", "5"}, p.Body[0]) {
+	if !sliceutil.ContainsString([]string{"chat", "0", "1", "2", "3", "4", "5"}, p.Body[0]) {
 		return
 	}
 
@@ -163,7 +167,7 @@ func pktIC(client *Client, p *packet.Packet) {
 	if p.Body[7] == "4" {
 		p.Body[7] = "6"
 	}
-	if !sliceutil.Contains([]string{"0", "1", "2", "5", "6"}, p.Body[7]) {
+	if !sliceutil.ContainsString([]string{"0", "1", "2", "5", "6"}, p.Body[7]) {
 		return
 	}
 
@@ -193,7 +197,7 @@ func pktAM(client *Client, p *packet.Packet) {
 		return
 	}
 
-	if sliceutil.Contains(music, p.Body[0]) && client.char != -1 {
+	if sliceutil.ContainsString(music, p.Body[0]) && client.char != -1 {
 		song := p.Body[0]
 		effects := "0"
 		if !strings.ContainsRune(p.Body[0], '.') {
@@ -306,6 +310,19 @@ func pktEditEvi(client *Client, p *packet.Packet) {
 // Handles CH#%
 func pktPing(client *Client, _ *packet.Packet) {
 	client.write("CHECK#%")
+}
+
+func pktModcall(client *Client, p *packet.Packet) {
+	var s string
+	if len(p.Body) > 1 {
+		s = p.Body[0]
+	}
+	for c := range clients.GetClients() {
+		if c.authenticated {
+			c.write(fmt.Sprintf("ZZ#[%v]%v(%v): %v#%%", client.area.Name, client.currentCharacter(), client.ipid, s))
+		}
+	}
+	logger.WriteReport(client.area.Name, client.area.GetBuffer())
 }
 
 // decode returns a given string as a decoded AO2 string.
