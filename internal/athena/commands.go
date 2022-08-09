@@ -78,6 +78,7 @@ func cmdLogin(client *Client, args []string) {
 	user := flags.Arg(0)
 	pass := flags.Arg(1)
 	auth, perms := db.AuthenticateUser(user, []byte(pass))
+	writeToAreaBuffer(client, "AUTH", fmt.Sprintf("Attempted login as %v.", user))
 	if auth {
 		client.authenticated = true
 		client.perms = perms
@@ -85,9 +86,11 @@ func cmdLogin(client *Client, args []string) {
 		client.sendServerMessage("Logged in as moderator.")
 		client.write("AUTH#1#%")
 		client.sendServerMessage(fmt.Sprintf("Welcome, %v.", user))
+		writeToAreaBuffer(client, "AUTH", fmt.Sprintf("Logged in as %v.", user))
 		return
 	}
 	client.write("AUTH#0#%")
+	writeToAreaBuffer(client, "AUTH", fmt.Sprintf("Failed login as %v.", user))
 }
 
 // Handles /mkusr.

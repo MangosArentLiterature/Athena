@@ -189,6 +189,7 @@ func pktIC(client *Client, p *packet.Packet) {
 	}
 	client.lastmsg = p.Body[4]
 	writeToArea(newPacket.String(), client.area)
+	writeToAreaBuffer(client, "IC", "\""+p.Body[4]+"\"")
 }
 
 // Handles MC#%
@@ -207,12 +208,14 @@ func pktAM(client *Client, p *packet.Packet) {
 			effects = p.Body[3]
 		}
 		writeToArea(fmt.Sprintf("MC#%v#%v#%v#1#0#%v#%%", song, p.Body[1], p.Body[2], effects), client.area)
+		writeToAreaBuffer(client, "MUSIC", fmt.Sprintf("Changed music to %v.", song))
 	} else if strings.Contains(areaNames, p.Body[0]) {
 		if decode(p.Body[0]) == client.area.Name {
 			return
 		}
 		for _, area := range areas {
 			if area.Name == decode(p.Body[0]) && area.AddChar(client.char) {
+				writeToAreaBuffer(client, "AREA", "Left area.")
 				client.area.RemoveChar(client.char)
 				client.area = area
 				def, pro := client.area.GetHP()
@@ -221,6 +224,7 @@ func pktAM(client *Client, p *packet.Packet) {
 				client.write(fmt.Sprintf("HP#2#%v#%%", pro))
 				sendPlayerArup()
 				writeToArea(fmt.Sprintf("CharsCheck#%v#%%", strings.Join(client.area.GetTaken(), "#")), client.area)
+				writeToAreaBuffer(client, "AREA", "Joined area.")
 			}
 		}
 	}
@@ -241,6 +245,15 @@ func pktHP(client *Client, p *packet.Packet) {
 		return
 	}
 	writeToArea(fmt.Sprintf("HP#%v#%%", p.Body[0]), client.area)
+
+	var side string
+	switch bar {
+	case 1:
+		side = "Defense"
+	case 2:
+		side = "Prosecution"
+	}
+	writeToAreaBuffer(client, "JUD", fmt.Sprintf("Set %v HP to %v.", side, value))
 }
 
 // Handles RT#%
@@ -249,6 +262,7 @@ func pktWTCE(client *Client, p *packet.Packet) {
 		return
 	}
 	writeToArea(fmt.Sprintf("RT#%v#%%", p.Body[0]), client.area)
+	writeToAreaBuffer(client, "JUD", "Played WT/CE animation.")
 }
 
 // Handles CT#%
@@ -279,12 +293,14 @@ func pktOOC(client *Client, p *packet.Packet) {
 	}
 
 	writeToArea(fmt.Sprintf("CT#%v#%v#0#%%", encode(client.oocName), p.Body[1]), client.area)
+	writeToAreaBuffer(client, "OOC", "\""+p.Body[1]+"\"")
 }
 
 // Handles PE#%
 func pktAddEvi(client *Client, p *packet.Packet) {
 	client.area.AddEvidence(strings.Join(p.Body, "&"))
 	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.area.GetEvidence(), "#")), client.area)
+	writeToAreaBuffer(client, "EVI", fmt.Sprintf("Added evidence: %v | %v", p.Body[0], p.Body[1]))
 }
 
 // Handles DE#%
@@ -295,6 +311,7 @@ func pktRemoveEvi(client *Client, p *packet.Packet) {
 	}
 	client.area.RemoveEvidence(id)
 	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.area.GetEvidence(), "#")), client.area)
+	writeToAreaBuffer(client, "EVI", fmt.Sprintf("Removed evidence %v.", id))
 }
 
 // Handles EE#%
@@ -305,6 +322,7 @@ func pktEditEvi(client *Client, p *packet.Packet) {
 	}
 	client.area.EditEvidence(id, strings.Join(p.Body[1:], "&"))
 	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.area.GetEvidence(), "#")), client.area)
+	writeToAreaBuffer(client, "EVI", fmt.Sprintf("Updated evidence %v to %v | %v", id, p.Body[1], p.Body[2]))
 }
 
 // Handles CH#%
@@ -323,6 +341,7 @@ func pktModcall(client *Client, p *packet.Packet) {
 		}
 	}
 	logger.WriteReport(client.area.Name, client.area.GetBuffer())
+	writeToAreaBuffer(client, "MOD", fmt.Sprintf("Called moderator for reason: %v", s))
 }
 
 // decode returns a given string as a decoded AO2 string.
