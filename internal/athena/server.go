@@ -33,7 +33,7 @@ import (
 	"github.com/MangosArentLiterature/Athena/internal/uidmanager"
 )
 
-const version = "0.1.0"
+const version = ""
 
 var (
 	config            *settings.Config
@@ -76,7 +76,19 @@ func InitServer(conf *settings.Config) error {
 
 	for _, a := range areaData {
 		areaNames += a.Name + "#"
-		areas = append(areas, area.NewArea(a, len(characters), conf.BufSize))
+		var evi_mode area.EvidenceMode
+		switch strings.ToLower(a.Evi_mode) {
+		case "any":
+			evi_mode = area.EviAny
+		case "cms":
+			evi_mode = area.EviCMs
+		case "none":
+			evi_mode = area.EviNone
+		default:
+			logger.LogWarningf("Area %v has an invalid or undefined evidence mode, defaulting to 'cms'.", a.Name)
+			evi_mode = area.EviCMs
+		}
+		areas = append(areas, area.NewArea(a, len(characters), conf.BufSize, evi_mode))
 	}
 	areaNames = strings.TrimSuffix(areaNames, "#")
 	if config.Advertise {
@@ -108,23 +120,23 @@ func ListenTCP() {
 		if logger.DebugNetwork {
 			logger.LogDebugf("Connection recieved from %v", conn.RemoteAddr())
 		}
-		client := newClient(conn)
-		go client.handleClient()
+		client := NewClient(conn)
+		go client.HandleClient()
 	}
 }
 
 // writeToAll sends a message to all connected clients.
 func writeToAll(message string) {
 	for client := range clients.GetClients() {
-		client.write(message)
+		client.Write(message)
 	}
 }
 
 // writeToArea sends a message to all clients in a given area.
 func writeToArea(message string, area *area.Area) {
 	for client := range clients.GetClients() {
-		if client.area == area {
-			client.write(message)
+		if client.Area() == area {
+			client.Write(message)
 		}
 	}
 }
@@ -132,18 +144,18 @@ func writeToArea(message string, area *area.Area) {
 // writeToAreaBuffer writes to an area buffer according to a client's action.
 func writeToAreaBuffer(client *Client, action string, message string) {
 	var auth string
-	if client.authenticated {
+	if client.Authenticated() {
 		auth = " (*)"
 	}
-	client.area.UpdateBuffer(fmt.Sprintf("[%v] [%v] %v%v (%v) %v: %v", time.Now().Format("15:04:05"), action,
-		client.currentCharacter(), auth, client.ipid, client.oocName, message))
+	client.Area().UpdateBuffer(fmt.Sprintf("[%v] [%v] %v%v (%v) %v: %v", time.Now().Format("15:04:05"), action,
+		client.CurrentCharacter(), auth, client.Ipid(), client.OOCName(), message))
 }
 
 // sendPlayerArup sends a player ARUP update to all connected clients.
 func sendPlayerArup() {
 	var plCounts []string
 	for _, a := range areas {
-		s := strconv.Itoa(a.GetPlayerCount())
+		s := strconv.Itoa(a.PlayerCount())
 		plCounts = append(plCounts, s)
 	}
 	writeToAll(fmt.Sprintf("ARUP#0#%v#%%", strings.Join(plCounts, "#")))

@@ -71,8 +71,8 @@ func ListenInput() {
 				break
 			}
 			for _, a := range areas {
-				if a.Name == cmd[1] {
-					logger.LogInfo(strings.Join(a.GetBuffer(), "\n"))
+				if a.Name() == cmd[1] {
+					logger.LogInfo(strings.Join(a.Buffer(), "\n"))
 				}
 			}
 		case "say":
@@ -81,7 +81,7 @@ func ListenInput() {
 				break
 			}
 			for c := range clients.GetClients() {
-				c.sendServerMessage(cmd[1])
+				c.SendServerMessage(cmd[1])
 			}
 		default:
 			logger.LogInfo("Unrecognized command")

@@ -23,8 +23,16 @@ import (
 	"github.com/MangosArentLiterature/Athena/internal/sliceutil"
 )
 
+type EvidenceMode int
+
+const (
+	EviNone EvidenceMode = iota
+	EviAny
+	EviCMs
+)
+
 type Area struct {
-	AreaData
+	data     AreaData
 	mu       sync.Mutex
 	taken    []bool
 	players  int
@@ -33,25 +41,42 @@ type Area struct {
 	evidence []string
 	buffer   []string
 	cms      []int
+	last_msg int
+	evi_mode EvidenceMode
 }
 
 type AreaData struct {
-	Name string `toml:"name"`
+	Name          string `toml:"name"`
+	Evi_mode      string `toml:"evidence_mode"`
+	Allow_iniswap bool   `toml:"allow_iniswap"`
+	Force_noint   bool   `toml:"force_nointerrupt"`
+	// bg            string       `toml:"background"`
+	// lock_bg       bool         `toml:"lock_bg"`
+	// force_bglist  bool         `toml:"enforce_bglist"`
+	// lock_music    bool         `toml:"restrict_music"`
 }
 
 // Returns a new area
-func NewArea(data AreaData, charlen int, bufsize int) *Area {
+func NewArea(data AreaData, charlen int, bufsize int, evi_mode EvidenceMode) *Area {
 	return &Area{
-		AreaData: data,
+		data:     data,
 		taken:    make([]bool, charlen),
 		defhp:    10,
 		prohp:    10,
 		buffer:   make([]string, bufsize),
+		last_msg: -1,
+		evi_mode: evi_mode,
 	}
 }
 
+func (a *Area) Name() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.data.Name
+}
+
 // Returns the list of taken characters in an area, where "-1" is taken and "0" is free
-func (a *Area) GetTaken() []string {
+func (a *Area) Taken() []string {
 	a.mu.Lock()
 	var takenList []string
 	for _, t := range a.taken {
@@ -113,7 +138,7 @@ func (a *Area) RemoveChar(char int) {
 }
 
 // Returns the values of the def and pro HP bars.
-func (a *Area) GetHP() (int, int) {
+func (a *Area) HP() (int, int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.defhp, a.prohp
@@ -140,14 +165,14 @@ func (a *Area) SetHP(bar int, v int) bool {
 }
 
 // Returns the number of players in the area.
-func (a *Area) GetPlayerCount() int {
+func (a *Area) PlayerCount() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.players
 }
 
 // Returns a list of evidence in the area.
-func (a *Area) GetEvidence() []string {
+func (a *Area) Evidence() []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.evidence
@@ -185,7 +210,7 @@ func (a *Area) UpdateBuffer(s string) {
 	a.mu.Unlock()
 }
 
-func (a *Area) GetBuffer() []string {
+func (a *Area) Buffer() []string {
 	var returnList []string
 	a.mu.Lock()
 	for _, s := range a.buffer {
@@ -197,11 +222,15 @@ func (a *Area) GetBuffer() []string {
 	return returnList
 }
 
-func (a *Area) GetCMs() []int {
+func (a *Area) CMs() []int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	return a.cms
 }
 
 func (a *Area) AddCM(uid int) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if sliceutil.ContainsInt(a.cms, uid) {
 		return false
 	}
@@ -210,6 +239,8 @@ func (a *Area) AddCM(uid int) bool {
 }
 
 func (a *Area) RemoveCM(uid int) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	for i, id := range a.cms {
 		if id == uid {
 			a.cms = append(a.cms[:i], a.cms[i+1:]...)
@@ -220,5 +251,37 @@ func (a *Area) RemoveCM(uid int) bool {
 }
 
 func (a *Area) HasCM(uid int) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	return sliceutil.ContainsInt(a.cms, uid)
+}
+
+func (a *Area) EvidenceMode() EvidenceMode {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.evi_mode
+}
+
+func (a *Area) IniswapAllowed() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.data.Allow_iniswap
+}
+
+func (a *Area) NoInterrupt() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.data.Force_noint
+}
+
+func (a *Area) LastMsgID() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.last_msg
+}
+
+func (a *Area) SetLastMsgID(id int) {
+	a.mu.Lock()
+	a.last_msg = id
+	a.mu.Unlock()
 }

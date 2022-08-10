@@ -47,7 +47,7 @@ func ParseCommand(client *Client, command string, args []string) {
 	if cmd != nil {
 		cmd(client, args)
 	} else {
-		client.sendServerMessage("Invalid command.")
+		client.SendServerMessage("Invalid command.")
 	}
 }
 
@@ -55,11 +55,11 @@ func ParseCommand(client *Client, command string, args []string) {
 func cmdHelp(client *Client, args []string) {
 	s := "Recognized commands:"
 	for name, attr := range commandperms {
-		if permissions.HasPermission(client.perms, attr.Permission) || (attr.Permission == permissions.PermissionField["CM"] && client.area.HasCM(client.uid)) {
+		if permissions.HasPermission(client.Perms(), attr.Permission) || (attr.Permission == permissions.PermissionField["CM"] && client.Area().HasCM(client.Uid())) {
 			s += fmt.Sprintf("\n%v: %v", name, attr.Desc)
 		}
 	}
-	client.sendServerMessage(s)
+	client.SendServerMessage(s)
 }
 
 // Handles /login.
@@ -68,11 +68,11 @@ func cmdLogin(client *Client, args []string) {
 	flags := flag.NewFlagSet("", 0)
 	err := flags.Parse(args)
 	if err == flag.ErrHelp {
-		client.sendServerMessage(usage)
+		client.SendServerMessage(usage)
 		return
 	}
 	if len(flags.Args()) < 2 {
-		client.sendServerMessage("not enough arguments\n" + usage)
+		client.SendServerMessage("not enough arguments\n" + usage)
 		return
 	}
 	user := flags.Arg(0)
@@ -80,23 +80,23 @@ func cmdLogin(client *Client, args []string) {
 	auth, perms := db.AuthenticateUser(user, []byte(pass))
 	writeToAreaBuffer(client, "AUTH", fmt.Sprintf("Attempted login as %v.", user))
 	if auth {
-		client.authenticated = true
-		client.perms = perms
-		client.mod_name = user
-		client.sendServerMessage("Logged in as moderator.")
-		client.write("AUTH#1#%")
-		client.sendServerMessage(fmt.Sprintf("Welcome, %v.", user))
+		client.SetAuthenticated(true)
+		client.SetPerms(perms)
+		client.SetModName(user)
+		client.SendServerMessage("Logged in as moderator.")
+		client.Write("AUTH#1#%")
+		client.SendServerMessage(fmt.Sprintf("Welcome, %v.", user))
 		writeToAreaBuffer(client, "AUTH", fmt.Sprintf("Logged in as %v.", user))
 		return
 	}
-	client.write("AUTH#0#%")
+	client.Write("AUTH#0#%")
 	writeToAreaBuffer(client, "AUTH", fmt.Sprintf("Failed login as %v.", user))
 }
 
 // Handles /mkusr.
 func cmdMakeUser(client *Client, args []string) {
-	if !permissions.HasPermission(client.perms, permissions.PermissionField["ADMIN"]) {
-		client.sendServerMessage("You do not have permission to use this command.")
+	if !permissions.HasPermission(client.Perms(), permissions.PermissionField["ADMIN"]) {
+		client.SendServerMessage("You do not have permission to use this command.")
 		return
 	}
 
@@ -104,24 +104,24 @@ func cmdMakeUser(client *Client, args []string) {
 	flags := flag.NewFlagSet("", 0)
 	err := flags.Parse(args)
 	if err == flag.ErrHelp {
-		client.sendServerMessage(usage)
+		client.SendServerMessage(usage)
 		return
 	}
 	if len(flags.Args()) < 3 {
-		client.sendServerMessage("not enough arguments\n" + usage)
+		client.SendServerMessage("not enough arguments\n" + usage)
 		return
 	}
 	user := flags.Arg(0)
 	pass := flags.Arg(1)
 	role, err := getRole(flags.Arg(2))
 	if err != nil {
-		client.sendServerMessage("Invalid role.")
+		client.SendServerMessage("Invalid role.")
 		return
 	}
 	err = db.CreateUser(user, []byte(pass), role.GetPermissions())
 	if err != nil {
-		client.sendServerMessage("Invalid username/password.")
+		client.SendServerMessage("Invalid username/password.")
 		return
 	}
-	client.sendServerMessage("User created.")
+	client.SendServerMessage("User created.")
 }

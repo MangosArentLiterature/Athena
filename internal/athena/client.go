@@ -32,11 +32,20 @@ import (
 	"github.com/MangosArentLiterature/Athena/internal/packet"
 )
 
+type ClientPairInfo struct {
+	name      string
+	emote     string
+	flip      string
+	offset    string
+	wanted_id int
+}
+
 type Client struct {
+	pair          ClientPairInfo
 	mu            sync.Mutex
 	conn          net.Conn
+	joining       bool
 	hdid          string
-	version       string
 	uid           int
 	area          *area.Area
 	char          int
@@ -46,23 +55,24 @@ type Client struct {
 	perms         uint64
 	authenticated bool
 	mod_name      string
+	pos           string
+	case_prefs    [5]bool
 }
 
 // Returns a new client.
-func newClient(conn net.Conn) *Client {
+func NewClient(conn net.Conn) *Client {
 	return &Client{
 		conn: conn,
 		uid:  -1,
 		char: -1,
+		pair: ClientPairInfo{wanted_id: -1},
 	}
 }
 
 // handleClient handles a client connection to the server.
-func (client *Client) handleClient() {
+func (client *Client) HandleClient() {
 	defer client.clientCleanup()
 	go timeout(client)
-
-	clients.AddClient(client)
 
 	// For privacy and ease of use, AO servers traditionally use a hashed version of a client's IP address to identify a client.
 	// Athena uses the MD5 hash of the IP address, encoded in base64.
@@ -72,8 +82,9 @@ func (client *Client) handleClient() {
 	client.ipid = client.ipid[:len(client.ipid)-2] // Removes the trailing padding.
 
 	logger.LogDebugf("%v connected", client.ipid)
+	clients.AddClient(client)
 
-	client.write("decryptor#NOENCRYPT#%") // Relic of FantaCrypt. AO2 requires a server to send this to proceed with the handshake.
+	client.Write("decryptor#NOENCRYPT#%") // Relic of FantaCrypt. AO2 requires a server to send this to proceed with the handshake.
 	input := bufio.NewScanner(client.conn)
 
 	splitfn := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
@@ -100,7 +111,7 @@ func (client *Client) handleClient() {
 		}
 		v := PacketMap[packet.Header] // Check if this is a known packet.
 		if v.Func != nil && len(packet.Body) >= v.Args {
-			if v.MustJoin && client.uid == -1 {
+			if v.MustJoin && client.Uid() == -1 {
 				return
 			}
 			v.Func(client, packet)
@@ -110,7 +121,7 @@ func (client *Client) handleClient() {
 }
 
 // Writes a string to the client's network socket.
-func (client *Client) write(message string) {
+func (client *Client) Write(message string) {
 	client.mu.Lock()
 	fmt.Fprint(client.conn, message)
 	if logger.DebugNetwork {
@@ -121,34 +132,205 @@ func (client *Client) write(message string) {
 
 // clientClenup cleans up a disconnected client.
 func (client *Client) clientCleanup() {
-	if client.uid != -1 {
-		logger.LogInfof("Client (IPID:%v UID:%v) left the server", client.ipid, client.uid)
-		uids.ReleaseUid(client.uid)
+	if client.Uid() != -1 {
+		logger.LogInfof("Client (IPID:%v UID:%v) left the server", client.ipid, client.Uid())
+		uids.ReleaseUid(client.Uid())
 		players.RemovePlayer()
-		client.area.RemoveChar(client.char)
+		client.Area().RemoveChar(client.CharID())
 		sendPlayerArup()
 	}
 	client.conn.Close()
 	clients.RemoveClient(client)
 }
 
-// sendServerMessage sends a server OOC message to the client.
-func (client *Client) sendServerMessage(message string) {
-	client.write(fmt.Sprintf("CT#%v#%v#1#%%", encode(config.Name), encode(message)))
+// SendServerMessage sends a server OOC message to the client.
+func (client *Client) SendServerMessage(message string) {
+	client.Write(fmt.Sprintf("CT#%v#%v#1#%%", encode(config.Name), encode(message)))
 }
 
-func (client *Client) currentCharacter() string {
-	if client.char == -1 {
+func (client *Client) CurrentCharacter() string {
+	if client.CharID() == -1 {
 		return "Spectator"
 	} else {
-		return characters[client.char]
+		return characters[client.CharID()]
 	}
 }
 
 // timeout closes an unjoined client's connection after 1 minute.
 func timeout(client *Client) {
 	time.Sleep(1 * time.Minute)
-	if client.uid == -1 {
+	if client.Uid() == -1 {
 		client.conn.Close()
 	}
+}
+
+func (client *Client) Hdid() string {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.hdid
+}
+
+func (client *Client) SetHdid(hdid string) {
+	client.mu.Lock()
+	client.hdid = hdid
+	client.mu.Unlock()
+}
+
+func (client *Client) Uid() int {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.uid
+}
+
+func (client *Client) SetUid(id int) {
+	client.mu.Lock()
+	client.uid = id
+	client.mu.Unlock()
+}
+
+func (client *Client) Area() *area.Area {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.area
+}
+
+func (client *Client) SetArea(area *area.Area) {
+	client.mu.Lock()
+	client.area = area
+	client.mu.Unlock()
+}
+
+func (client *Client) CharID() int {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.char
+}
+
+func (client *Client) SetCharID(id int) {
+	client.mu.Lock()
+	client.char = id
+	client.mu.Unlock()
+}
+
+func (client *Client) Ipid() string {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.ipid
+}
+
+func (client *Client) OOCName() string {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.oocName
+}
+
+func (client *Client) SetOocName(name string) {
+	client.mu.Lock()
+	client.oocName = name
+	client.mu.Unlock()
+}
+
+func (client *Client) LastMsg() string {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.lastmsg
+}
+
+func (client *Client) SetLastMsg(msg string) {
+	client.mu.Lock()
+	client.lastmsg = msg
+	client.mu.Unlock()
+}
+
+func (client *Client) Perms() uint64 {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.perms
+}
+
+func (client *Client) SetPerms(perms uint64) {
+	client.mu.Lock()
+	client.perms = perms
+	client.mu.Unlock()
+}
+
+func (client *Client) Authenticated() bool {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.authenticated
+}
+
+func (client *Client) SetAuthenticated(auth bool) {
+	client.mu.Lock()
+	client.authenticated = auth
+	client.mu.Unlock()
+}
+
+func (client *Client) ModName() string {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.mod_name
+}
+
+func (client *Client) SetModName(name string) {
+	client.mu.Lock()
+	client.mod_name = name
+	client.mu.Unlock()
+}
+
+func (client *Client) Pos() string {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.pos
+}
+
+func (client *Client) SetPos(pos string) {
+	client.mu.Lock()
+	client.pos = pos
+	client.mu.Unlock()
+}
+
+func (client *Client) CasePrefs() [5]bool {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.case_prefs
+}
+
+func (client *Client) CasePref(index int) bool {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.case_prefs[index]
+}
+
+func (client *Client) SetCasePref(index int, b bool) {
+	client.mu.Lock()
+	client.case_prefs[index] = b
+	client.mu.Unlock()
+}
+
+func (client *Client) PairInfo() ClientPairInfo {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.pair
+}
+
+func (client *Client) SetPairInfo(name string, emote string, flip string, offset string) {
+	client.mu.Lock()
+	client.pair.name = name
+	client.pair.emote = emote
+	client.pair.flip = flip
+	client.pair.offset = offset
+	client.mu.Unlock()
+}
+
+func (client *Client) PairWantedID() int {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.pair.wanted_id
+}
+
+func (client *Client) SetPairWantedID(id int) {
+	client.mu.Lock()
+	client.pair.wanted_id = id
+	client.mu.Unlock()
 }
