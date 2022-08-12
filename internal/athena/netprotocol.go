@@ -80,10 +80,9 @@ func pktId(client *Client, p *packet.Packet) {
 		return
 	}
 	client.Write(fmt.Sprintf("PN#%v#%v#%v#%%", players.GetPlayerCount(), config.MaxPlayers, encode(config.Desc)))
-	// god this is cursed
 	fl := []string{"noencryption", "yellowtext", "prezoom", "flipping", "customobjections",
 		"fastloading", "deskmod", "evidence", "cccc_ic_support", "arup", "casing_alerts",
-		"looping_sfx", "additive", "effects", "y_offset", "expanded_desk_mods", "auth_packet"}
+		"looping_sfx", "additive", "effects", "y_offset", "expanded_desk_mods", "auth_packet"} // god this is cursed
 	client.Write(fmt.Sprintf("FL#%v#%%", strings.Join(fl, "#")))
 }
 
@@ -98,7 +97,7 @@ func pktResCount(client *Client, _ *packet.Packet) {
 		client.conn.Close()
 		return
 	}
-	client.joining = true
+	client.joining = true // This simply exists to prevent skipping the askchaa#% packet and bypassing the player count check.
 	client.Write(fmt.Sprintf("SI#%v#%v#%v#%%", len(characters), 0, len(music)))
 }
 
@@ -163,73 +162,86 @@ func pktIC(client *Client, p *packet.Packet) {
 	args = append(args[:19], args[17:]...)
 	args = append(args[:20], args[18:]...)
 
-	// desk_mod
-	if !sliceutil.ContainsString([]string{"chat", "0", "1", "2", "3", "4", "5"}, args[0]) {
-		return
-	}
-	// character
-	if !strings.EqualFold(characters[client.CharID()], args[2]) && !client.Area().IniswapAllowed() {
-		client.SendServerMessage("Iniswapping is not allowed in this area.")
-		return
-	}
-	// message
-	if len(decode(p.Body[4])) > config.MaxMsg {
-		client.SendServerMessage("Your message exceeds the maximum message length!")
-		return
-	}
-	if p.Body[4] == client.LastMsg() {
-		return
-	}
-	//pos
 	client.SetPos(args[5])
-	// emote_mod
 	emote_mod, err := strconv.Atoi(args[7])
 	if err != nil {
 		return
 	} else if emote_mod == 4 { // Value of 4 can crash the client.
 		args[7] = "6"
-	} else if emote_mod < 0 || emote_mod > 6 {
-		return
 	}
-	// char_id
-	if args[8] != strconv.Itoa(client.CharID()) {
-		return
-	}
-	// objection_mod
 	objection, err := strconv.Atoi(strings.Split(args[10], "&")[0])
 	if err != nil {
 		return
-	} else if objection < 0 || objection > 4 {
-		return
 	}
-	// evidence
 	evi, err := strconv.Atoi(args[11])
 	if err != nil {
 		return
-	} else if evi < 0 || evi > len(client.Area().Evidence()) {
-		return
 	}
-	// flip
-	if args[12] != "0" && args[12] != "1" {
-		return
-	}
-	// realization
-	if args[13] != "0" && args[13] != "1" {
-		return
-	}
-	// text_color
 	text, err := strconv.Atoi(args[14])
 	if err != nil {
 		return
-	} else if text < 0 || text > 6 {
-		return
 	}
-	// showname
-	if len(args[14]) > 30 {
+
+	if args[22] == "" {
+		args[22] = "0"
+	}
+	if args[23] == "" {
+		args[23] = "0"
+	}
+	if args[24] == "" {
+		args[24] = "0"
+	}
+	if args[28] == "" || client.CharID() != client.Area().LastMsgID() {
+		args[28] = "0"
+	}
+	if client.Area().NoInterrupt() || args[22] == "1" {
+		args[22] = "1"
+		if emote_mod == 1 || emote_mod == 2 {
+			args[7] = "0"
+		} else if emote_mod == 6 {
+			args[7] = "5"
+		}
+	}
+
+	switch {
+	case !sliceutil.ContainsString([]string{"chat", "0", "1", "2", "3", "4", "5"}, args[0]): // desk_mod
+		return
+	case !strings.EqualFold(characters[client.CharID()], args[2]) && !client.Area().IniswapAllowed(): // character name
+		client.SendServerMessage("Iniswapping is not allowed in this area.")
+		return
+	case len(decode(p.Body[4])) > config.MaxMsg: // message
+		client.SendServerMessage("Your message exceeds the maximum message length!")
+		return
+	case p.Body[4] == client.LastMsg():
+		return
+	case emote_mod < 0 || emote_mod > 6:
+		return
+	case args[8] != strconv.Itoa(client.CharID()): // char_id
+		return
+	case objection < 0 || objection > 4: // objection_mod
+		return
+	case evi < 0 || evi > len(client.Area().Evidence()): // evidence
+		return
+	case args[12] != "0" && args[12] != "1": // flipping
+		return
+	case args[13] != "0" && args[13] != "1": // realization
+		return
+	case text < 0 || text > 6: // text color
+		return
+	case len(args[14]) > 30: // showname
 		client.SendServerMessage("Your showname is too long!")
 		return
+	case args[22] != "0" && args[22] != "1": // non-interrupting preanim
+		return
+	case args[23] != "0" && args[23] != "1": // sfx looping
+		return
+	case args[24] != "0" && args[24] != "1": // screenshake
+		return
+	case args[28] != "0" && args[28] != "1": // additive
+		return
 	}
-	// pairing
+
+	// Pairing validation
 	if args[16] != "" && args[16] != "-1" {
 		pid, err := strconv.Atoi(strings.Split(args[16], "^")[0])
 		if err != nil {
@@ -255,7 +267,7 @@ func pktIC(client *Client, p *packet.Packet) {
 			args[16] = "-1^"
 		}
 	}
-	// offset
+	// Offset validation
 	if args[19] != "" {
 		offsets := strings.Split(decode(args[19]), "&")
 		x_offset, err := strconv.Atoi(offsets[0])
@@ -272,38 +284,6 @@ func pktIC(client *Client, p *packet.Packet) {
 				return
 			}
 		}
-	}
-	// nointerrupt_pres
-	if args[22] == "" {
-		args[22] = "0"
-	} else if args[22] != "0" && args[22] != "1" {
-		return
-	}
-	if client.Area().NoInterrupt() || args[22] == "1" {
-		args[22] = "1"
-		if emote_mod == 1 || emote_mod == 2 {
-			args[7] = "0"
-		} else if emote_mod == 6 {
-			args[7] = "5"
-		}
-	}
-	// sfx_looping
-	if args[23] == "" {
-		args[23] = "0"
-	} else if args[23] != "0" && args[23] != "1" {
-		return
-	}
-	// screenshake
-	if args[24] == "" {
-		args[24] = "0"
-	} else if args[24] != "0" && args[24] != "1" {
-		return
-	}
-	// additive
-	if args[28] == "" || client.CharID() != client.Area().LastMsgID() {
-		args[28] = "0"
-	} else if args[28] != "0" && args[28] != "1" {
-		return
 	}
 
 	client.SetPairInfo(args[2], args[3], args[12], args[19])
@@ -343,7 +323,12 @@ func pktAM(client *Client, p *packet.Packet) {
 			return
 		}
 		for _, area := range areas {
-			if area.Name() == decode(p.Body[0]) && area.AddChar(client.CharID()) {
+			if area.Name() == decode(p.Body[0]) {
+				if !area.AddChar(client.CharID()) {
+					client.SetCharID(-1)
+					area.AddChar(-1)
+					client.Write("DONE#%")
+				}
 				writeToAreaBuffer(client, "AREA", "Left area.")
 				client.Area().RemoveChar(client.CharID())
 				client.SetArea(area)

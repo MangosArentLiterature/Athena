@@ -171,6 +171,25 @@ func getRole(name string) (permissions.Role, error) {
 	return permissions.Role{}, fmt.Errorf("role does not exist")
 }
 
+func getClientByUid(uid int) (*Client, error) {
+	for c := range clients.GetClients() {
+		if c.Uid() == uid {
+			return c, nil
+		}
+	}
+	return nil, fmt.Errorf("client does not exist")
+}
+
+func getClientsByIpid(ipid string) []*Client {
+	var returnlist []*Client
+	for c := range clients.GetClients() {
+		if c.Ipid() == ipid {
+			returnlist = append(returnlist, c)
+		}
+	}
+	return returnlist
+}
+
 // CleanupServer closes all connections to the server, and closes the server's database.
 func CleanupServer() {
 	for client := range clients.GetClients() {

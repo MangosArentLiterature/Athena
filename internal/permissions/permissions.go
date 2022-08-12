@@ -27,6 +27,8 @@ type Role struct {
 
 var PermissionField = map[string]uint64{
 	"NONE":  0,
+	"CM":    1,
+	"KICK":  1 << 1,
 	"ADMIN": math.MaxInt64,
 }
 

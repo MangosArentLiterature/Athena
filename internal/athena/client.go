@@ -316,10 +316,7 @@ func (client *Client) PairInfo() ClientPairInfo {
 
 func (client *Client) SetPairInfo(name string, emote string, flip string, offset string) {
 	client.mu.Lock()
-	client.pair.name = name
-	client.pair.emote = emote
-	client.pair.flip = flip
-	client.pair.offset = offset
+	client.pair.name, client.pair.emote, client.pair.flip, client.pair.offset = name, emote, flip, offset
 	client.mu.Unlock()
 }
 
@@ -333,4 +330,12 @@ func (client *Client) SetPairWantedID(id int) {
 	client.mu.Lock()
 	client.pair.wanted_id = id
 	client.mu.Unlock()
+}
+
+func (client *Client) RemoveAuth() {
+	client.mu.Lock()
+	client.authenticated, client.perms, client.mod_name = false, 0, ""
+	client.mu.Unlock()
+	client.SendServerMessage("Logged out as moderator.")
+	client.Write("AUTH#-1#%")
 }
