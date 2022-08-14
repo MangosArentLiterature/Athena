@@ -44,6 +44,9 @@ type ServerConfig struct {
 	MaxPlayers int    `toml:"max_players"`
 	MaxMsg     int    `toml:"max_message_length"`
 	BufSize    int    `toml:"log_buffer_size"`
+	BanLen     string `toml:"default_ban_duration"`
+	LogLevel   string `toml:"log_level"`
+	LogDir     string `toml:"log_directory"`
 }
 type MSConfig struct {
 	Advertise bool   `toml:"advertise"`
@@ -61,6 +64,9 @@ func defaultConfig() *Config {
 			MaxPlayers: 100,
 			MaxMsg:     256,
 			BufSize:    150,
+			BanLen:     "3d",
+			LogLevel:   "info",
+			LogDir:     "logs",
 		},
 		MSConfig{
 			Advertise: false,

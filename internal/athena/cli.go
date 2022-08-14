@@ -38,6 +38,10 @@ func ListenInput() {
 				logger.LogInfo("Not enough arguments for command mkusr. Usage: mkusr <username> <password> <role>.")
 				break
 			}
+			if db.UserExists(cmd[1]) {
+				logger.LogInfo("User already exists.")
+				return
+			}
 			user := cmd[1]
 			pass := cmd[2]
 			role, err := getRole(cmd[3])
@@ -56,6 +60,9 @@ func ListenInput() {
 			if len(cmd) < 2 {
 				logger.LogInfo("Not enough arguments for command rmusr. Usage: rmusr <username>.")
 				break
+			}
+			if !db.UserExists(cmd[1]) {
+				logger.LogInfo("User does not exist.")
 			}
 			err := db.RemoveUser(cmd[1])
 			if err != nil {
@@ -80,7 +87,7 @@ func ListenInput() {
 				logger.LogInfo("Not enough arguments for command say. Usage: say <message>.")
 				break
 			}
-			for c := range clients.GetClients() {
+			for c := range clients.GetAllClients() {
 				c.SendServerMessage(cmd[1])
 			}
 		default:

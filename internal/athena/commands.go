@@ -22,10 +22,13 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/MangosArentLiterature/Athena/internal/db"
+	"github.com/MangosArentLiterature/Athena/internal/logger"
 	"github.com/MangosArentLiterature/Athena/internal/permissions"
 	"github.com/MangosArentLiterature/Athena/internal/sliceutil"
+	"github.com/xhit/go-str2duration/v2"
 )
 
 type cmdParamList struct {
@@ -61,6 +64,7 @@ var commands = map[string]cmdMapValue{
 	"setrole":  {"Usage: /setrole <username> <role>", "Updates a moderator user's role.", permissions.PermissionField["ADMIN"], cmdChangeRole},
 	"kick":     {"Usage: /kick -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... <reason>", "Kicks user(s) from the server.", permissions.PermissionField["KICK"], cmdKick},
 	"kickarea": {"Usage: /kickarea <uid1>,<uid2>...", "Kicks user(s) from the area.", permissions.PermissionField["CM"], cmdAreaKick},
+	"ban":      {"Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>", "Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
 }
 
 // ParseCommand calls the appropriate function for a given command.
@@ -93,7 +97,7 @@ func ParseCommand(client *Client, command string, args []string) {
 	}
 }
 
-// Handles /login.
+// Handles /login
 func cmdLogin(client *Client, args []string, usage string) {
 	if client.Authenticated() {
 		client.SendServerMessage("You are already logged in.")
@@ -103,7 +107,7 @@ func cmdLogin(client *Client, args []string, usage string) {
 		return
 	}
 	auth, perms := db.AuthenticateUser(args[0], []byte(args[1]))
-	writeToAreaBuffer(client, "AUTH", fmt.Sprintf("Attempted login as %v.", args[0]))
+	addToBuffer(client, "AUTH", fmt.Sprintf("Attempted login as %v.", args[0]), true)
 	if auth {
 		client.SetAuthenticated(true)
 		client.SetPerms(perms)
@@ -111,13 +115,14 @@ func cmdLogin(client *Client, args []string, usage string) {
 		client.SendServerMessage("Logged in as moderator.")
 		client.Write("AUTH#1#%")
 		client.SendServerMessage(fmt.Sprintf("Welcome, %v.", args[0]))
-		writeToAreaBuffer(client, "AUTH", fmt.Sprintf("Logged in as %v.", args[0]))
+		addToBuffer(client, "AUTH", fmt.Sprintf("Logged in as %v.", args[0]), true)
 		return
 	}
 	client.Write("AUTH#0#%")
-	writeToAreaBuffer(client, "AUTH", fmt.Sprintf("Failed login as %v.", args[0]))
+	addToBuffer(client, "AUTH", fmt.Sprintf("Failed login as %v.", args[0]), true)
 }
 
+// Handles /logout
 func cmdLogout(client *Client, _ []string, _ string) {
 	if !client.Authenticated() {
 		client.SendServerMessage("Invalid command.")
@@ -125,12 +130,17 @@ func cmdLogout(client *Client, _ []string, _ string) {
 	client.RemoveAuth()
 }
 
-// Handles /mkusr.
+// Handles /mkusr
 func cmdMakeUser(client *Client, args []string, usage string) {
 	if len(args) < 3 {
 		client.SendServerMessage("Not enough arguments:\n" + usage)
 		return
 	}
+	if db.UserExists(args[0]) {
+		client.SendServerMessage("User already exists.")
+		return
+	}
+
 	role, err := getRole(args[2])
 	if err != nil {
 		client.SendServerMessage("Invalid role.")
@@ -138,31 +148,39 @@ func cmdMakeUser(client *Client, args []string, usage string) {
 	}
 	err = db.CreateUser(args[0], []byte(args[1]), role.GetPermissions())
 	if err != nil {
+		logger.LogError(err.Error())
 		client.SendServerMessage("Invalid username/password.")
 		return
 	}
 	client.SendServerMessage("User created.")
 }
 
+// Handles /rmusr
 func cmdRemoveUser(client *Client, args []string, usage string) {
 	if len(args) < 1 {
 		client.SendServerMessage("Not enough arguments:\n" + usage)
 		return
 	}
+	if !db.UserExists(args[0]) {
+		client.SendServerMessage("User does not exist.")
+		return
+	}
 	err := db.RemoveUser(args[0])
 	if err != nil {
-		client.SendServerMessage("Invalid username.")
+		client.SendServerMessage("Failed to remove user.")
+		logger.LogError(err.Error())
 		return
 	}
 	client.SendServerMessage("Removed user.")
 
-	for c := range clients.GetClients() {
+	for c := range clients.GetAllClients() {
 		if c.Authenticated() && c.ModName() == args[0] {
 			c.RemoveAuth()
 		}
 	}
 }
 
+// Handles /setrole
 func cmdChangeRole(client *Client, args []string, usage string) {
 	if len(args) < 2 {
 		client.SendServerMessage("Not enough arguments:\n" + usage)
@@ -173,24 +191,30 @@ func cmdChangeRole(client *Client, args []string, usage string) {
 		client.SendServerMessage("Invalid role.")
 		return
 	}
+
+	if !db.UserExists(args[0]) {
+		client.SendServerMessage("User does not exist.")
+		return
+	}
+
 	err = db.ChangePermissions(args[0], role.GetPermissions())
 	if err != nil {
-		client.SendServerMessage("Invalid username.")
+		client.SendServerMessage("Failed to change permissions.")
+		logger.LogError(err.Error())
 		return
 	}
 	client.SendServerMessage("Role updated.")
 
-	for c := range clients.GetClients() {
+	for c := range clients.GetAllClients() {
 		if c.Authenticated() && c.ModName() == args[0] {
 			c.SetPerms(role.GetPermissions())
 		}
 	}
 }
 
+// Handles /kick
 func cmdKick(client *Client, args []string, usage string) {
 	flags := flag.NewFlagSet("", 0)
-	var usedList *[]string
-	var useUid bool
 	uids := &[]string{}
 	ipids := &[]string{}
 	flags.Var(&cmdParamList{uids}, "u", "")
@@ -202,6 +226,8 @@ func cmdKick(client *Client, args []string, usage string) {
 		return
 	}
 
+	var usedList *[]string
+	var useUid bool
 	if len(*uids) > 0 {
 		useUid = true
 		usedList = uids
@@ -212,33 +238,90 @@ func cmdKick(client *Client, args []string, usage string) {
 		return
 	}
 
-	var toKick []*Client
-	for _, s := range *usedList {
-		if useUid {
-			x, err := strconv.Atoi(s)
-			if err != nil || x == -1 {
-				continue
-			}
-			c, err := getClientByUid(x)
-			if err != nil {
-				continue
-			}
-			toKick = append(toKick, c)
-		} else {
-			c := getClientsByIpid(s)
-			toKick = append(toKick, c...)
-		}
-	}
+	toKick := getKBList(usedList, useUid)
 	var count int
+	var report string
+	reason := strings.Join(flags.Args(), " ")
 	for _, c := range toKick {
-		c.Write(fmt.Sprintf("KK#%v#%%", strings.Join(flags.Args(), " ")))
+		report += c.Ipid() + ", "
+		c.Write(fmt.Sprintf("KK#%v#%%", reason))
 		c.conn.Close()
 		count++
 	}
+	report = strings.TrimSuffix(report, ", ")
+	addToBuffer(client, "CMD", fmt.Sprintf("Kicked %v from server for reason: %v.", report, reason), true)
 	client.SendServerMessage(fmt.Sprintf("Kicked %v clients.", count))
 	sendPlayerArup()
 }
 
+// Handles /ban
+func cmdBan(client *Client, args []string, usage string) {
+	flags := flag.NewFlagSet("", 0)
+	uids := &[]string{}
+	ipids := &[]string{}
+	flags.Var(&cmdParamList{uids}, "u", "")
+	flags.Var(&cmdParamList{ipids}, "i", "")
+	duration := flags.String("d", config.BanLen, "")
+	flags.Parse(args)
+
+	if len(flags.Args()) < 1 {
+		client.SendServerMessage("Not enough arguments:\n" + usage)
+		return
+	}
+
+	var useUid bool
+	var usedList *[]string
+	if len(*uids) > 0 {
+		useUid = true
+		usedList = uids
+	} else if len(*ipids) > 0 {
+		usedList = ipids
+	} else {
+		client.SendServerMessage("Not enough arguments:\n" + usage)
+		return
+	}
+
+	banTime, reason := time.Now().UTC().Unix(), strings.Join(flags.Args(), " ")
+	var until int64
+	if strings.ToLower(*duration) == "perma" {
+		until = -1
+	} else {
+		parsedDur, err := str2duration.ParseDuration(*duration)
+		if err != nil {
+			client.SendServerMessage("Failed to ban: Cannot parse duration.")
+			return
+		}
+		until = time.Now().UTC().Add(parsedDur).Unix()
+	}
+
+	toBan := getKBList(usedList, useUid)
+	var count int
+	var report string
+	for _, c := range toBan {
+		id, err := db.AddBan(c.Ipid(), c.Hdid(), banTime, until, reason, client.ModName())
+		if err != nil {
+			continue
+		}
+		var untilS string
+		if until == -1 {
+			untilS = "∞"
+		} else {
+			untilS = time.Unix(until, 0).UTC().Format("02 Jan 2006 15:04 MST")
+		}
+		if !strings.Contains(report, c.Ipid()) {
+			report += c.Ipid() + ", "
+		}
+		client.Write(fmt.Sprintf("KB#%v\nUntil: %v\nID: %v#%%", reason, untilS, id))
+		c.conn.Close()
+		count++
+	}
+	report = strings.TrimSuffix(report, ", ")
+	addToBuffer(client, "CMD", fmt.Sprintf("Kicked and banned %v from server for %v: %v.", report, *duration, reason), true)
+	client.SendServerMessage(fmt.Sprintf("Kicked and banned %v clients.", count))
+	sendPlayerArup()
+}
+
+// Handles /kickarea
 func cmdAreaKick(client *Client, args []string, usage string) {
 	if client.Area() == areas[0] {
 		client.SendServerMessage("Failed to kick: Cannot kick a user from area 0.")
@@ -284,7 +367,8 @@ func cmdAreaKick(client *Client, args []string, usage string) {
 	sendPlayerArup()
 }
 
+// Handles /about
 func cmdAbout(client *Client, _ []string, _ string) {
-	client.SendServerMessage(fmt.Sprintf("Running Athena version %v.\nAthena is open source software, for documentation, bug reports, and source code, see: %v",
-		version, "github.com/MangosArentLiterature/Athena"))
+	client.SendServerMessage(fmt.Sprintf("Running Athena version %v.\nAthena is open source software; for documentation, bug reports, and source code, see: %v",
+		version, "https://github.com/MangosArentLiterature/Athena"))
 }

@@ -21,7 +21,6 @@ import (
 	"os"
 	"os/signal"
 	"path"
-	"strings"
 	"syscall"
 
 	"github.com/MangosArentLiterature/Athena/internal/athena"
@@ -31,9 +30,7 @@ import (
 )
 
 var (
-	configFlag   = flag.String("c", "", "path to config directory")
-	logFlag      = flag.String("l", "", "path to report directory")
-	logLevelFlag = flag.String("ll", "info", "log level to use")
+	configFlag   = flag.String("c", "config", "path to config directory")
 	netDebugFlag = flag.Bool("netdebug", false, "log raw network traffic")
 )
 
@@ -41,34 +38,29 @@ func main() {
 	flag.Parse()
 	if *configFlag != "" {
 		settings.ConfigPath = path.Clean(*configFlag)
-	} else { // Get config path relative to the executable
-		exe, _ := os.Executable()
-		settings.ConfigPath = path.Dir(exe) + "/config"
 	}
-	if *logFlag != "" {
-		logger.LogPath = path.Clean(*logFlag)
-	} else {
-		exe, _ := os.Executable()
-		logger.LogPath = path.Dir(exe) + "/logs"
-	}
-	switch strings.ToLower(*logLevelFlag) {
-	case "debug", "d":
-		logger.CurrentLevel = logger.Debug
-	case "info", "i":
-		logger.CurrentLevel = logger.Info
-	case "warning", "warn", "w":
-		logger.CurrentLevel = logger.Warning
-	case "error", "e":
-		logger.CurrentLevel = logger.Error
-	}
-	logger.DebugNetwork = *netDebugFlag
-
-	db.DBPath = settings.ConfigPath + "/athena.db"
 	config, err := settings.GetConfig()
 	if err != nil {
-		logger.LogFatalf("Failed to read config: %v", err)
+		logger.LogFatalf("failed to read config: %v", err)
 		os.Exit(1)
 	}
+	logger.LogPath = path.Clean(config.LogDir)
+
+	switch config.LogLevel {
+	case "debug":
+		logger.CurrentLevel = logger.Debug
+	case "info":
+		logger.CurrentLevel = logger.Info
+	case "warning":
+		logger.CurrentLevel = logger.Warning
+	case "error":
+		logger.CurrentLevel = logger.Error
+	case "fatal":
+		logger.CurrentLevel = logger.Fatal
+	}
+	logger.DebugNetwork = *netDebugFlag
+	db.DBPath = settings.ConfigPath + "/athena.db"
+
 	err = athena.InitServer(config)
 	if err != nil {
 		logger.LogFatalf("Failed to initalize server: %v", err)

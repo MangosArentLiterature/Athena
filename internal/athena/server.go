@@ -31,6 +31,7 @@ import (
 	"github.com/MangosArentLiterature/Athena/internal/playercount"
 	"github.com/MangosArentLiterature/Athena/internal/settings"
 	"github.com/MangosArentLiterature/Athena/internal/uidmanager"
+	"github.com/xhit/go-str2duration/v2"
 )
 
 const version = ""
@@ -72,6 +73,11 @@ func InitServer(conf *settings.Config) error {
 	roles, err = settings.LoadRoles()
 	if err != nil {
 		return err
+	}
+
+	_, err = str2duration.ParseDuration(conf.BanLen)
+	if err != nil {
+		return fmt.Errorf("failed to parse default_ban_duration: %v", err.Error())
 	}
 
 	for _, a := range areaData {
@@ -127,28 +133,32 @@ func ListenTCP() {
 
 // writeToAll sends a message to all connected clients.
 func writeToAll(message string) {
-	for client := range clients.GetClients() {
+	for client := range clients.GetAllClients() {
 		client.Write(message)
 	}
 }
 
 // writeToArea sends a message to all clients in a given area.
 func writeToArea(message string, area *area.Area) {
-	for client := range clients.GetClients() {
+	for client := range clients.GetAllClients() {
 		if client.Area() == area {
 			client.Write(message)
 		}
 	}
 }
 
-// writeToAreaBuffer writes to an area buffer according to a client's action.
-func writeToAreaBuffer(client *Client, action string, message string) {
+// addToBuffer writes to an area buffer according to a client's action.
+func addToBuffer(client *Client, action string, message string, audit bool) {
 	var auth string
 	if client.Authenticated() {
 		auth = " (*)"
 	}
-	client.Area().UpdateBuffer(fmt.Sprintf("[%v] [%v] %v%v (%v) %v: %v", time.Now().Format("15:04:05"), action,
-		client.CurrentCharacter(), auth, client.Ipid(), client.OOCName(), message))
+	s := fmt.Sprintf("[%v] [%v] %v%v (%v) %v: %v", time.Now().Format("15:04:05"), action,
+		client.CurrentCharacter(), auth, client.Ipid(), client.OOCName(), message)
+	client.Area().UpdateBuffer(s)
+	if audit {
+		logger.WriteAudit(s)
+	}
 }
 
 // sendPlayerArup sends a player ARUP update to all connected clients.
@@ -172,7 +182,7 @@ func getRole(name string) (permissions.Role, error) {
 }
 
 func getClientByUid(uid int) (*Client, error) {
-	for c := range clients.GetClients() {
+	for c := range clients.GetAllClients() {
 		if c.Uid() == uid {
 			return c, nil
 		}
@@ -182,7 +192,7 @@ func getClientByUid(uid int) (*Client, error) {
 
 func getClientsByIpid(ipid string) []*Client {
 	var returnlist []*Client
-	for c := range clients.GetClients() {
+	for c := range clients.GetAllClients() {
 		if c.Ipid() == ipid {
 			returnlist = append(returnlist, c)
 		}
@@ -192,7 +202,7 @@ func getClientsByIpid(ipid string) []*Client {
 
 // CleanupServer closes all connections to the server, and closes the server's database.
 func CleanupServer() {
-	for client := range clients.GetClients() {
+	for client := range clients.GetAllClients() {
 		client.conn.Close()
 	}
 	db.Close()

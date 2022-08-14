@@ -18,11 +18,28 @@ package db
 
 import (
 	"database/sql"
-	"fmt"
 	"strconv"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite"
+)
+
+type BanInfo struct {
+	Id        int
+	Ipid      string
+	Hdid      string
+	Time      int64
+	Duration  int64
+	Reason    string
+	Moderator string
+}
+
+type BanLookup int
+
+const (
+	IPID BanLookup = iota
+	HDID
 )
 
 var DBPath string
@@ -35,7 +52,7 @@ func Open() error {
 	if err != nil {
 		return err
 	}
-	_, err = db.Exec("CREATE TABLE IF NOT EXISTS BANS(ID INT PRIMARY KEY, IPID TEXT, HDID TEXT, TIME INT, DURATION INT, REASON TEXT, MODERATOR TEXT)")
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS BANS(ID INTEGER PRIMARY KEY, IPID TEXT, HDID TEXT, TIME INTEGER, DURATION INTEGER, REASON TEXT, MODERATOR TEXT)")
 	if err != nil {
 		return err
 	}
@@ -56,11 +73,8 @@ func UserExists(username string) bool {
 	}
 }
 
-// CreateUser adds a new user to the server's database, returning an error if the user already exists.
+// CreateUser adds a new user to the server's database.
 func CreateUser(username string, password []byte, permissions uint64) error {
-	if UserExists(username) {
-		return fmt.Errorf("username already exists")
-	}
 	hashed, err := bcrypt.GenerateFromPassword(password, 12)
 	if err != nil {
 		return err
@@ -72,11 +86,8 @@ func CreateUser(username string, password []byte, permissions uint64) error {
 	return nil
 }
 
-// RemoveUser deletes a user from the server's database, returning an error if the user doesn't exist.
+// RemoveUser deletes a user from the server's database.
 func RemoveUser(username string) error {
-	if !UserExists(username) {
-		return fmt.Errorf("user does not exist")
-	}
 	_, err := db.Exec("DELETE FROM USERS WHERE USERNAME = ?", username)
 	if err != nil {
 		return err
@@ -84,7 +95,7 @@ func RemoveUser(username string) error {
 	return nil
 }
 
-// AuthenticateUser returns whether or not the user's credentials match those in the databse, and that user's permissions.
+// AuthenticateUser returns whether or not the user's credentials match those in the database, and that user's permissions.
 func AuthenticateUser(username string, password []byte) (bool, uint64) {
 	var rpass, rperms string
 	result := db.QueryRow("SELECT PASSWORD, PERMISSIONS FROM USERS WHERE USERNAME = ?", username)
@@ -98,6 +109,82 @@ func AuthenticateUser(username string, password []byte) (bool, uint64) {
 		return false, 0
 	}
 	return true, p
+}
+
+func ChangePermissions(username string, permissions uint64) error {
+	_, err := db.Exec("UPDATE USERS SET PERMISSIONS = ? WHERE USERNAME = ?", strconv.FormatUint(permissions, 10), username)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func AddBan(ipid string, hdid string, time int64, duration int64, reason string, moderator string) (int, error) {
+	result, err := db.Exec("INSERT INTO BANS VALUES(NULL, ?, ?, ?, ?, ?, ?)", ipid, hdid, time, duration, reason, moderator)
+	if err != nil {
+		return 0, err
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return int(id), nil
+}
+
+func UnBan(id int) error {
+	_, err := db.Exec("UPDATE BANS SET DURATION = 0 WHERE ID = ?", id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func GetBan(id int) (BanInfo, error) {
+	result := db.QueryRow("SELECT * FROM BANS WHERE ID = ?", id)
+	var ban BanInfo
+	if result.Scan(&ban.Id, &ban.Ipid, &ban.Hdid, &ban.Time, &ban.Duration, &ban.Reason, &ban.Moderator) == sql.ErrNoRows {
+		return ban, sql.ErrNoRows
+	} else {
+		return ban, nil
+	}
+}
+
+func IsBanned(by BanLookup, value string) (bool, BanInfo, error) {
+	var stmt *sql.Stmt
+	var err error
+	switch by {
+	case IPID:
+		stmt, err = db.Prepare("SELECT ID, DURATION, REASON FROM BANS WHERE IPID = ?")
+	case HDID:
+		stmt, err = db.Prepare("SELECT ID, DURATION, REASON FROM BANS WHERE HDID = ?")
+	}
+	if err != nil {
+		return false, BanInfo{}, err
+	}
+	result, err := stmt.Query(value)
+	if err != nil {
+		return false, BanInfo{}, err
+	}
+	stmt.Close()
+	defer result.Close()
+	for result.Next() {
+		var duration int64
+		var id int
+		var reason string
+		result.Scan(&id, &duration, &reason)
+		if duration == -1 || time.Unix(duration, 0).UTC().After(time.Now().UTC()) {
+			return true, BanInfo{Id: id, Duration: duration, Reason: reason}, nil
+		}
+	}
+	return false, BanInfo{}, nil
+}
+
+func UpdateBan(id int, duration int, reason string) error {
+	_, err := db.Exec("UPDATE BANS SET DURATION = ?, REASON = ? WHERE ID = ?", duration, reason, id)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // Closes the server's database connection.

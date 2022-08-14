@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/MangosArentLiterature/Athena/internal/area"
+	"github.com/MangosArentLiterature/Athena/internal/db"
 	"github.com/MangosArentLiterature/Athena/internal/logger"
 	"github.com/MangosArentLiterature/Athena/internal/packet"
 	"github.com/MangosArentLiterature/Athena/internal/sliceutil"
@@ -71,6 +72,10 @@ func pktHdid(client *Client, p *packet.Packet) {
 	// This is done not only for privacy reasons, but to ensure stored HDIDs will be a reasonable length.
 	hash := md5.Sum([]byte(decode(p.Body[0])))
 	client.SetHdid(base64.StdEncoding.EncodeToString(hash[:]))
+	client.SetHdid(client.Hdid()[:len(client.Hdid())-2]) // Removes the trailing padding.
+
+	client.CheckBanned(db.HDID)
+
 	client.Write(fmt.Sprintf("ID#0#Athena#%v#%%", version)) // Why does the client need this? Nobody knows.
 }
 
@@ -252,7 +257,7 @@ func pktIC(client *Client, p *packet.Packet) {
 		}
 		client.SetPairWantedID(pid)
 		pairing := false
-		for c := range clients.GetClients() {
+		for c := range clients.GetAllClients() {
 			if c.CharID() == pid && c.Pos() == client.Pos() && c.PairWantedID() == client.CharID() {
 				pairinfo := c.PairInfo()
 				args[17] = pairinfo.name
@@ -290,7 +295,7 @@ func pktIC(client *Client, p *packet.Packet) {
 	client.SetLastMsg(p.Body[4])
 	client.Area().SetLastMsgID(client.CharID())
 	writeToArea(fmt.Sprintf("MS#%v#%%", strings.Join(args, "#")), client.Area())
-	writeToAreaBuffer(client, "IC", "\""+p.Body[4]+"\"")
+	addToBuffer(client, "IC", "\""+p.Body[4]+"\"", false)
 }
 
 // Handles MC#%
@@ -307,9 +312,9 @@ func pktAM(client *Client, p *packet.Packet) {
 		effects := "0"
 		if !strings.ContainsRune(p.Body[0], '.') { // Chosen song is a category, and should stop the music.
 			song = "~stop.mp3"
-			writeToAreaBuffer(client, "MUSIC", "Stopped the music.")
+			addToBuffer(client, "MUSIC", "Stopped the music.", false)
 		} else {
-			writeToAreaBuffer(client, "MUSIC", fmt.Sprintf("Changed music to %v.", song))
+			addToBuffer(client, "MUSIC", fmt.Sprintf("Changed music to %v.", song), false)
 		}
 		if len(p.Body) > 2 {
 			name = p.Body[2]
@@ -329,7 +334,7 @@ func pktAM(client *Client, p *packet.Packet) {
 					area.AddChar(-1)
 					client.Write("DONE#%")
 				}
-				writeToAreaBuffer(client, "AREA", "Left area.")
+				addToBuffer(client, "AREA", "Left area.", false)
 				client.Area().RemoveChar(client.CharID())
 				client.SetArea(area)
 				def, pro := client.Area().HP()
@@ -338,7 +343,7 @@ func pktAM(client *Client, p *packet.Packet) {
 				client.Write(fmt.Sprintf("HP#2#%v#%%", pro))
 				sendPlayerArup()
 				writeToArea(fmt.Sprintf("CharsCheck#%v#%%", strings.Join(client.Area().Taken(), "#")), client.Area())
-				writeToAreaBuffer(client, "AREA", "Joined area.")
+				addToBuffer(client, "AREA", "Joined area.", false)
 			}
 		}
 	}
@@ -367,7 +372,7 @@ func pktHP(client *Client, p *packet.Packet) {
 	case 2:
 		side = "Prosecution"
 	}
-	writeToAreaBuffer(client, "JUD", fmt.Sprintf("Set %v HP to %v.", side, value))
+	addToBuffer(client, "JUD", fmt.Sprintf("Set %v HP to %v.", side, value), false)
 }
 
 // Handles RT#%
@@ -376,7 +381,7 @@ func pktWTCE(client *Client, p *packet.Packet) {
 		return
 	}
 	writeToArea(fmt.Sprintf("RT#%v#%%", p.Body[0]), client.Area())
-	writeToAreaBuffer(client, "JUD", "Played WT/CE animation.")
+	addToBuffer(client, "JUD", "Played WT/CE animation.", false)
 }
 
 // Handles CT#%
@@ -389,7 +394,7 @@ func pktOOC(client *Client, p *packet.Packet) {
 		client.SendServerMessage("Your message exceeds the maximum message length!")
 		return
 	}
-	for c := range clients.GetClients() {
+	for c := range clients.GetAllClients() {
 		if c.OOCName() == p.Body[0] && c != client {
 			client.SendServerMessage("That username is already taken.")
 			return
@@ -407,7 +412,7 @@ func pktOOC(client *Client, p *packet.Packet) {
 	}
 
 	writeToArea(fmt.Sprintf("CT#%v#%v#0#%%", encode(client.OOCName()), p.Body[1]), client.Area())
-	writeToAreaBuffer(client, "OOC", "\""+p.Body[1]+"\"")
+	addToBuffer(client, "OOC", "\""+p.Body[1]+"\"", false)
 }
 
 // Handles PE#%
@@ -417,7 +422,7 @@ func pktAddEvi(client *Client, p *packet.Packet) {
 	}
 	client.Area().AddEvidence(strings.Join(p.Body, "&"))
 	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.Area().Evidence(), "#")), client.Area())
-	writeToAreaBuffer(client, "EVI", fmt.Sprintf("Added evidence: %v | %v", p.Body[0], p.Body[1]))
+	addToBuffer(client, "EVI", fmt.Sprintf("Added evidence: %v | %v", p.Body[0], p.Body[1]), false)
 }
 
 // Handles DE#%
@@ -431,7 +436,7 @@ func pktRemoveEvi(client *Client, p *packet.Packet) {
 	}
 	client.Area().RemoveEvidence(id)
 	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.Area().Evidence(), "#")), client.Area())
-	writeToAreaBuffer(client, "EVI", fmt.Sprintf("Removed evidence %v.", id))
+	addToBuffer(client, "EVI", fmt.Sprintf("Removed evidence %v.", id), false)
 }
 
 // Handles EE#%
@@ -445,7 +450,7 @@ func pktEditEvi(client *Client, p *packet.Packet) {
 	}
 	client.Area().EditEvidence(id, strings.Join(p.Body[1:], "&"))
 	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.Area().Evidence(), "#")), client.Area())
-	writeToAreaBuffer(client, "EVI", fmt.Sprintf("Updated evidence %v to %v | %v", id, p.Body[1], p.Body[2]))
+	addToBuffer(client, "EVI", fmt.Sprintf("Updated evidence %v to %v | %v", id, p.Body[1], p.Body[2]), false)
 }
 
 // Handles CH#%
@@ -459,13 +464,13 @@ func pktModcall(client *Client, p *packet.Packet) {
 	if len(p.Body) >= 1 {
 		s = p.Body[0]
 	}
-	for c := range clients.GetClients() {
+	for c := range clients.GetAllClients() {
 		if c.Authenticated() {
 			c.Write(fmt.Sprintf("ZZ#[%v] %v (%v): %v#%%", client.Area().Name(), client.CurrentCharacter(), client.Ipid(), s))
 		}
 	}
 	logger.WriteReport(client.Area().Name(), client.Area().Buffer())
-	writeToAreaBuffer(client, "MOD", fmt.Sprintf("Called moderator for reason: %v", s))
+	addToBuffer(client, "MOD", fmt.Sprintf("Called moderator for reason: %v", s), false)
 }
 
 // Handles SETCASE#%
@@ -493,7 +498,7 @@ func pktCaseAnn(client *Client, p *packet.Packet) {
 	newPacket := fmt.Sprintf("CASEA#CASE ANNOUNCEMENT: %v in %v needs players for %v#%v#1#%%",
 		client.CurrentCharacter(), client.Area().Name(), p.Body[0], strings.Join(p.Body[1:], "#")) // Due to a bug, old client versions require this packet to have an extra arg.
 
-	for c := range clients.GetClients() {
+	for c := range clients.GetAllClients() {
 		if c == client {
 			continue
 		}

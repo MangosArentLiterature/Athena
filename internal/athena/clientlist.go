@@ -35,6 +35,6 @@ func (cl *ClientList) RemoveClient(c *Client) {
 	cl.mu.Unlock()
 }
 
-func (cl *ClientList) GetClients() map[*Client]struct{} {
+func (cl *ClientList) GetAllClients() map[*Client]struct{} {
 	return cl.list
 }

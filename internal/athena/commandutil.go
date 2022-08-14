@@ -14,37 +14,27 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
-package permissions
+package athena
 
-import (
-	"math"
-)
+import "strconv"
 
-type Role struct {
-	Name        string   `toml:"name"`
-	Permissions []string `toml:"permissions"`
-}
-
-var PermissionField = map[string]uint64{
-	"NONE":  0,
-	"CM":    1,
-	"KICK":  1 << 1,
-	"BAN":   1 << 2,
-	"ADMIN": math.MaxInt64,
-}
-
-// GetPermissions returns the permissions for a role.
-func (r *Role) GetPermissions() uint64 {
-	var last uint64
-	var current uint64
-	for _, perm := range r.Permissions {
-		current = PermissionField[perm] | last
-		last = current
+func getKBList(usedList *[]string, useUid bool) []*Client {
+	var l []*Client
+	for _, s := range *usedList {
+		if useUid {
+			x, err := strconv.Atoi(s)
+			if err != nil || x == -1 {
+				continue
+			}
+			c, err := getClientByUid(x)
+			if err != nil {
+				continue
+			}
+			l = append(l, c)
+		} else {
+			c := getClientsByIpid(s)
+			l = append(l, c...)
+		}
 	}
-	return current
-}
-
-// HasPermission checks if the supplied permissions matches the required permissions.
-func HasPermission(perm uint64, required uint64) bool {
-	return required == (perm & required)
+	return l
 }

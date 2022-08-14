@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/MangosArentLiterature/Athena/internal/area"
+	"github.com/MangosArentLiterature/Athena/internal/db"
 	"github.com/MangosArentLiterature/Athena/internal/logger"
 	"github.com/MangosArentLiterature/Athena/internal/packet"
 )
@@ -72,7 +73,6 @@ func NewClient(conn net.Conn) *Client {
 // handleClient handles a client connection to the server.
 func (client *Client) HandleClient() {
 	defer client.clientCleanup()
-	go timeout(client)
 
 	// For privacy and ease of use, AO servers traditionally use a hashed version of a client's IP address to identify a client.
 	// Athena uses the MD5 hash of the IP address, encoded in base64.
@@ -81,8 +81,11 @@ func (client *Client) HandleClient() {
 	client.ipid = base64.StdEncoding.EncodeToString(hash[:])
 	client.ipid = client.ipid[:len(client.ipid)-2] // Removes the trailing padding.
 
+	client.CheckBanned(db.IPID)
 	logger.LogDebugf("%v connected", client.ipid)
 	clients.AddClient(client)
+
+	go timeout(client)
 
 	client.Write("decryptor#NOENCRYPT#%") // Relic of FantaCrypt. AO2 requires a server to send this to proceed with the handshake.
 	input := bufio.NewScanner(client.conn)
@@ -112,7 +115,7 @@ func (client *Client) HandleClient() {
 		v := PacketMap[packet.Header] // Check if this is a known packet.
 		if v.Func != nil && len(packet.Body) >= v.Args {
 			if v.MustJoin && client.Uid() == -1 {
-				return
+				continue
 			}
 			v.Func(client, packet)
 		}
@@ -338,4 +341,34 @@ func (client *Client) RemoveAuth() {
 	client.mu.Unlock()
 	client.SendServerMessage("Logged out as moderator.")
 	client.Write("AUTH#-1#%")
+}
+
+func (client *Client) CheckBanned(by db.BanLookup) {
+	var banned bool
+	var baninfo db.BanInfo
+	var err error
+	switch by {
+	case db.IPID:
+		banned, baninfo, err = db.IsBanned(by, client.Ipid())
+		if err != nil {
+			logger.LogErrorf("Error reading IP ban for %v: %v", client.Ipid(), err)
+		}
+	case db.HDID:
+		banned, baninfo, err = db.IsBanned(by, client.Hdid())
+		if err != nil {
+			logger.LogErrorf("Error reading HDID ban for %v: %v", client.Ipid(), err)
+		}
+	}
+
+	if banned {
+		var duration string
+		if baninfo.Duration == -1 {
+			duration = "∞"
+		} else {
+			duration = time.Unix(baninfo.Duration, 0).UTC().Format("02 Jan 2006 15:04 MST")
+		}
+		client.Write(fmt.Sprintf("BD#%v\nUntil: %v\nID: %v#%%", baninfo.Reason, duration, baninfo.Id))
+		client.conn.Close()
+		return
+	}
 }

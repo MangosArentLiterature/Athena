@@ -18,9 +18,22 @@ max_players = 100
 # so don't make this too large.
 max_message_length = 256
 
+# Sets the detault length of bans.
+# This must be a number followed by a unit. Example: "3w" - three weeks.
+# Valid units are "s" (second), "m" (minute), "h" (hour), "d" (day), "w" (week).
+default_ban_duration = "3d"
+
 # Sets the number of actions (IC chat messages, OOC chat messages, judge actions, etc.) each area should store.
 # When a user calls a mod, this buffer will be flushed to a report file for review.
 log_buffer_size = 150
+
+# Sets the log level. Events of lower levels will not be logged.
+# Valid levels: debug, info, warning, error, fatal
+log_level = "info"
+
+# Sets the path to the log directory.
+# This directory will be used for storing report files and the server audit log.
+log_directory = "logs"
 
 [MasterServer]
 
