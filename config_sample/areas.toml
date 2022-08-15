@@ -3,9 +3,11 @@ name = "Lobby"
 evidence_mode = "none"
 allow_iniswap = false
 force_nointerrupt = true
+background = "gs4"
 
 [[Area]]
 name = "Courtroom"
 evidence_mode = "cms"
 allow_iniswap = true
 force_nointerrupt = false
+background = "gs4"

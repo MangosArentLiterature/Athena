@@ -111,6 +111,7 @@ func AuthenticateUser(username string, password []byte) (bool, uint64) {
 	return true, p
 }
 
+// ChangePermissions updated the permissions of a user in the database.
 func ChangePermissions(username string, permissions uint64) error {
 	_, err := db.Exec("UPDATE USERS SET PERMISSIONS = ? WHERE USERNAME = ?", strconv.FormatUint(permissions, 10), username)
 	if err != nil {
@@ -119,6 +120,7 @@ func ChangePermissions(username string, permissions uint64) error {
 	return nil
 }
 
+// AddBan adds a new ban to the database.
 func AddBan(ipid string, hdid string, time int64, duration int64, reason string, moderator string) (int, error) {
 	result, err := db.Exec("INSERT INTO BANS VALUES(NULL, ?, ?, ?, ?, ?, ?)", ipid, hdid, time, duration, reason, moderator)
 	if err != nil {
@@ -131,6 +133,7 @@ func AddBan(ipid string, hdid string, time int64, duration int64, reason string,
 	return int(id), nil
 }
 
+// UnBan nullifies a ban in the database.
 func UnBan(id int) error {
 	_, err := db.Exec("UPDATE BANS SET DURATION = 0 WHERE ID = ?", id)
 	if err != nil {
@@ -139,6 +142,7 @@ func UnBan(id int) error {
 	return nil
 }
 
+// GetBan returns the ban with the given ID.
 func GetBan(id int) (BanInfo, error) {
 	result := db.QueryRow("SELECT * FROM BANS WHERE ID = ?", id)
 	var ban BanInfo
@@ -149,6 +153,7 @@ func GetBan(id int) (BanInfo, error) {
 	}
 }
 
+// IsBanned returns whether the given ipid/hdid is banned, and the info of the ban.
 func IsBanned(by BanLookup, value string) (bool, BanInfo, error) {
 	var stmt *sql.Stmt
 	var err error
@@ -179,6 +184,7 @@ func IsBanned(by BanLookup, value string) (bool, BanInfo, error) {
 	return false, BanInfo{}, nil
 }
 
+// UpdateBan updates the duration and reason of a ban.
 func UpdateBan(id int, duration int, reason string) error {
 	_, err := db.Exec("UPDATE BANS SET DURATION = ?, REASON = ? WHERE ID = ?", duration, reason, id)
 	if err != nil {

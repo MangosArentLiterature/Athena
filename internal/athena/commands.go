@@ -49,6 +49,7 @@ func (v cmdParamList) Set(s string) error {
 }
 
 type cmdMapValue struct {
+	Args       int
 	Usage      string
 	Desc       string
 	Permission uint64
@@ -56,15 +57,16 @@ type cmdMapValue struct {
 }
 
 var commands = map[string]cmdMapValue{
-	"about":    {"Usage: /about", "Prints Athena version information.", permissions.PermissionField["NONE"], cmdAbout},
-	"login":    {"Usage: /login <username> <password>", "Logs in as moderator.", permissions.PermissionField["NONE"], cmdLogin},
-	"logout":   {"Usage: /logout", "Logs out as moderator.", permissions.PermissionField["NONE"], cmdLogout},
-	"mkusr":    {"Usage: /mkusr <username> <password> <role>", "Creates a new moderator user.", permissions.PermissionField["ADMIN"], cmdMakeUser},
-	"rmusr":    {"Usage: /rmusr <username>", "Removes a moderator user.", permissions.PermissionField["ADMIN"], cmdRemoveUser},
-	"setrole":  {"Usage: /setrole <username> <role>", "Updates a moderator user's role.", permissions.PermissionField["ADMIN"], cmdChangeRole},
-	"kick":     {"Usage: /kick -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... <reason>", "Kicks user(s) from the server.", permissions.PermissionField["KICK"], cmdKick},
-	"kickarea": {"Usage: /kickarea <uid1>,<uid2>...", "Kicks user(s) from the area.", permissions.PermissionField["CM"], cmdAreaKick},
-	"ban":      {"Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>", "Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
+	"about":    {0, "Usage: /about", "Prints Athena version information.", permissions.PermissionField["NONE"], cmdAbout},
+	"login":    {2, "Usage: /login <username> <password>", "Logs in as moderator.", permissions.PermissionField["NONE"], cmdLogin},
+	"logout":   {1, "Usage: /logout", "Logs out as moderator.", permissions.PermissionField["NONE"], cmdLogout},
+	"mkusr":    {3, "Usage: /mkusr <username> <password> <role>", "Creates a new moderator user.", permissions.PermissionField["ADMIN"], cmdMakeUser},
+	"rmusr":    {1, "Usage: /rmusr <username>", "Removes a moderator user.", permissions.PermissionField["ADMIN"], cmdRemoveUser},
+	"setrole":  {2, "Usage: /setrole <username> <role>", "Updates a moderator user's role.", permissions.PermissionField["ADMIN"], cmdChangeRole},
+	"kick":     {3, "Usage: /kick -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... <reason>", "Kicks user(s) from the server.", permissions.PermissionField["KICK"], cmdKick},
+	"kickarea": {1, "Usage: /kickarea <uid1>,<uid2>...", "Kicks user(s) from the area.", permissions.PermissionField["CM"], cmdAreaKick},
+	"ban":      {3, "Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>", "Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
+	"bg":       {1, "Usage: /bg <background>", "Sets the area's background.", permissions.PermissionField["CM"], cmdBg},
 }
 
 // ParseCommand calls the appropriate function for a given command.
@@ -89,6 +91,9 @@ func ParseCommand(client *Client, command string, args []string) {
 		if sliceutil.ContainsString(args, "-h") {
 			client.SendServerMessage(cmd.Usage)
 			return
+		} else if len(args) < cmd.Args {
+			client.SendServerMessage("Not enough arguments.\n" + cmd.Usage)
+			return
 		}
 		cmd.Func(client, args, cmd.Usage)
 	} else {
@@ -102,9 +107,6 @@ func cmdLogin(client *Client, args []string, usage string) {
 	if client.Authenticated() {
 		client.SendServerMessage("You are already logged in.")
 		return
-	} else if len(args) < 2 {
-		client.SendServerMessage("Not enough arguments:\n" + usage)
-		return
 	}
 	auth, perms := db.AuthenticateUser(args[0], []byte(args[1]))
 	addToBuffer(client, "AUTH", fmt.Sprintf("Attempted login as %v.", args[0]), true)
@@ -113,12 +115,12 @@ func cmdLogin(client *Client, args []string, usage string) {
 		client.SetPerms(perms)
 		client.SetModName(args[0])
 		client.SendServerMessage("Logged in as moderator.")
-		client.Write("AUTH#1#%")
+		client.SendPacket("AUTH", "1")
 		client.SendServerMessage(fmt.Sprintf("Welcome, %v.", args[0]))
 		addToBuffer(client, "AUTH", fmt.Sprintf("Logged in as %v.", args[0]), true)
 		return
 	}
-	client.Write("AUTH#0#%")
+	client.SendPacket("AUTH", "0")
 	addToBuffer(client, "AUTH", fmt.Sprintf("Failed login as %v.", args[0]), true)
 }
 
@@ -132,10 +134,6 @@ func cmdLogout(client *Client, _ []string, _ string) {
 
 // Handles /mkusr
 func cmdMakeUser(client *Client, args []string, usage string) {
-	if len(args) < 3 {
-		client.SendServerMessage("Not enough arguments:\n" + usage)
-		return
-	}
 	if db.UserExists(args[0]) {
 		client.SendServerMessage("User already exists.")
 		return
@@ -157,10 +155,6 @@ func cmdMakeUser(client *Client, args []string, usage string) {
 
 // Handles /rmusr
 func cmdRemoveUser(client *Client, args []string, usage string) {
-	if len(args) < 1 {
-		client.SendServerMessage("Not enough arguments:\n" + usage)
-		return
-	}
 	if !db.UserExists(args[0]) {
 		client.SendServerMessage("User does not exist.")
 		return
@@ -182,10 +176,6 @@ func cmdRemoveUser(client *Client, args []string, usage string) {
 
 // Handles /setrole
 func cmdChangeRole(client *Client, args []string, usage string) {
-	if len(args) < 2 {
-		client.SendServerMessage("Not enough arguments:\n" + usage)
-		return
-	}
 	role, err := getRole(args[1])
 	if err != nil {
 		client.SendServerMessage("Invalid role.")
@@ -244,7 +234,7 @@ func cmdKick(client *Client, args []string, usage string) {
 	reason := strings.Join(flags.Args(), " ")
 	for _, c := range toKick {
 		report += c.Ipid() + ", "
-		c.Write(fmt.Sprintf("KK#%v#%%", reason))
+		c.SendPacket("KK", reason)
 		c.conn.Close()
 		count++
 	}
@@ -311,7 +301,7 @@ func cmdBan(client *Client, args []string, usage string) {
 		if !strings.Contains(report, c.Ipid()) {
 			report += c.Ipid() + ", "
 		}
-		client.Write(fmt.Sprintf("KB#%v\nUntil: %v\nID: %v#%%", reason, untilS, id))
+		client.SendPacket("KB", fmt.Sprintf("%v\nUntil: %v\nID: %v", reason, untilS, id))
 		c.conn.Close()
 		count++
 	}
@@ -325,10 +315,6 @@ func cmdBan(client *Client, args []string, usage string) {
 func cmdAreaKick(client *Client, args []string, usage string) {
 	if client.Area() == areas[0] {
 		client.SendServerMessage("Failed to kick: Cannot kick a user from area 0.")
-		return
-	}
-	if len(args) < 1 {
-		client.SendServerMessage("Not enough arguments:\n" + usage)
 		return
 	}
 	var toKick []*Client
@@ -353,22 +339,25 @@ func cmdAreaKick(client *Client, args []string, usage string) {
 			client.SendServerMessage("You can't kick yourself from the area.")
 			continue
 		}
-		c.Area().RemoveChar(c.CharID())
-		if !areas[0].AddChar(c.CharID()) {
-			c.SetCharID(-1)
-			areas[0].AddChar(-1)
-			c.Write("DONE#%")
-		}
-		c.SetArea(areas[0])
+		client.ChangeArea(areas[0])
 		c.SendServerMessage("You were kicked from the area!")
 		count++
 	}
 	client.SendServerMessage(fmt.Sprintf("Kicked %v clients.", count))
-	sendPlayerArup()
+}
+
+func cmdBg(client *Client, args []string, usage string) {
+	if !sliceutil.ContainsString(backgrounds, args[0]) {
+		client.SendServerMessage("Invalid background.")
+		return
+	}
+	client.Area().SetBackground(args[0])
+	writeToArea(client.Area(), "BN", args[0])
+	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v set the background to %v.", client.OOCName(), args[0]))
 }
 
 // Handles /about
 func cmdAbout(client *Client, _ []string, _ string) {
 	client.SendServerMessage(fmt.Sprintf("Running Athena version %v.\nAthena is open source software; for documentation, bug reports, and source code, see: %v",
-		version, "https://github.com/MangosArentLiterature/Athena"))
+		version, "https://github.com/MangosArentLiterature/Athena."))
 }

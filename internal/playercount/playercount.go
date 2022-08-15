@@ -23,18 +23,21 @@ type PlayerCount struct {
 	mu      sync.Mutex
 }
 
+// GetPlayerCount returns the current player count.
 func (pc *PlayerCount) GetPlayerCount() int {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 	return pc.players
 }
 
+// AddPlayer increments the player count by one.
 func (pc *PlayerCount) AddPlayer() {
 	pc.mu.Lock()
 	pc.players++
 	pc.mu.Unlock()
 }
 
+// RemovePlayer decrements the player count by one.
 func (pc *PlayerCount) RemovePlayer() {
 	pc.mu.Lock()
 	pc.players--

@@ -28,6 +28,7 @@ type UidManager struct {
 	mu   sync.Mutex
 }
 
+// InitHeap initalizes the server's uid heap.
 func (u *UidManager) InitHeap(players int) {
 	u.mu.Lock()
 	u.heap = make(uidheap.UidHeap, players)
@@ -38,12 +39,14 @@ func (u *UidManager) InitHeap(players int) {
 	u.mu.Unlock()
 }
 
+// GetUid pops the lowest non-taken uid from the heap, returning it.
 func (u *UidManager) GetUid() int {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	return heap.Pop(&u.heap).(int)
 }
 
+// ReleaseUid pushes a taken uid back onto the heap.
 func (u *UidManager) ReleaseUid(uid int) {
 	u.mu.Lock()
 	heap.Push(&u.heap, uid)

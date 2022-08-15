@@ -23,18 +23,21 @@ type ClientList struct {
 	mu   sync.Mutex
 }
 
+// AddClient adds a client to the list.
 func (cl *ClientList) AddClient(c *Client) {
 	cl.mu.Lock()
 	cl.list[c] = struct{}{}
 	cl.mu.Unlock()
 }
 
+// RemoveClient removes a client from the list.
 func (cl *ClientList) RemoveClient(c *Client) {
 	cl.mu.Lock()
 	delete(cl.list, c)
 	cl.mu.Unlock()
 }
 
+// GetAllClients returns all clients in the list.
 func (cl *ClientList) GetAllClients() map[*Client]struct{} {
 	return cl.list
 }

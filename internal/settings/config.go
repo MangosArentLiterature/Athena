@@ -75,7 +75,7 @@ func defaultConfig() *Config {
 	}
 }
 
-// Loads the configuation from config/config.toml.
+// Load reads the server's main configuration file.
 func (conf *Config) Load() error {
 	_, err := toml.DecodeFile(ConfigPath+"/config.toml", conf)
 	if err != nil {
@@ -84,7 +84,7 @@ func (conf *Config) Load() error {
 	return nil
 }
 
-// Returns a loaded configuration
+// GetConfig returns the server's config options.
 func GetConfig() (*Config, error) {
 	conf := defaultConfig()
 	err := conf.Load()
@@ -96,7 +96,7 @@ func GetConfig() (*Config, error) {
 	return conf, nil
 }
 
-// Loads the music list from config/music.txt.
+// LoadMusic reads the server's music file, returning it's contents.
 func LoadMusic() ([]string, error) {
 	var musicList []string
 	f, err := os.Open(ConfigPath + "/music.txt")
@@ -117,25 +117,22 @@ func LoadMusic() ([]string, error) {
 	return musicList, nil
 }
 
-// Loads the character list from config/characters.txt.
-func LoadCharacters() ([]string, error) {
-	var charList []string
-	f, err := os.Open(ConfigPath + "/characters.txt")
+// LoadFile reads a server file, returning it's contents.
+func LoadFile(file string) ([]string, error) {
+	var l []string
+	f, err := os.Open(ConfigPath + file)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 	in := bufio.NewScanner(f)
 	for in.Scan() {
-		charList = append(charList, in.Text())
+		l = append(l, in.Text())
 	}
-	if len(charList) == 0 {
-		return nil, fmt.Errorf("empty charlist")
-	}
-	return charList, nil
+	return l, nil
 }
 
-// Loads the area list from config/areas.toml.
+// LoadAreas reads the server's area configuration file, returning it's contents.
 func LoadAreas() ([]area.AreaData, error) {
 	var conf struct {
 		Area []area.AreaData
@@ -150,6 +147,7 @@ func LoadAreas() ([]area.AreaData, error) {
 	return conf.Area, nil
 }
 
+// LoadAreas reads the server's role configuration file, returning it's contents.
 func LoadRoles() ([]permissions.Role, error) {
 	var conf struct {
 		Role []permissions.Role

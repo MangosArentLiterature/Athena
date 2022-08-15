@@ -30,6 +30,7 @@ import (
 	"github.com/MangosArentLiterature/Athena/internal/permissions"
 	"github.com/MangosArentLiterature/Athena/internal/playercount"
 	"github.com/MangosArentLiterature/Athena/internal/settings"
+	"github.com/MangosArentLiterature/Athena/internal/sliceutil"
 	"github.com/MangosArentLiterature/Athena/internal/uidmanager"
 	"github.com/xhit/go-str2duration/v2"
 )
@@ -37,17 +38,17 @@ import (
 const version = ""
 
 var (
-	config            *settings.Config
-	characters, music []string
-	areas             []*area.Area
-	areaNames         string
-	roles             []permissions.Role
-	uids              uidmanager.UidManager
-	players           playercount.PlayerCount
-	clients           ClientList = ClientList{list: make(map[*Client]struct{})}
-	updatePlayers                = make(chan int)
-	advertDone                   = make(chan struct{})
-	FatalError                   = make(chan error)
+	config                         *settings.Config
+	characters, music, backgrounds []string
+	areas                          []*area.Area
+	areaNames                      string
+	roles                          []permissions.Role
+	uids                           uidmanager.UidManager
+	players                        playercount.PlayerCount
+	clients                        ClientList = ClientList{list: make(map[*Client]struct{})}
+	updatePlayers                             = make(chan int)
+	advertDone                                = make(chan struct{})
+	FatalError                                = make(chan error)
 )
 
 // InitServer initalizes the server's database, uids, configs, and advertiser.
@@ -61,9 +62,11 @@ func InitServer(conf *settings.Config) error {
 	if err != nil {
 		return err
 	}
-	characters, err = settings.LoadCharacters()
+	characters, err = settings.LoadFile("/characters.txt")
 	if err != nil {
 		return err
+	} else if len(characters) == 0 {
+		return fmt.Errorf("empty character list")
 	}
 	areaData, err := settings.LoadAreas()
 	if err != nil {
@@ -73,6 +76,13 @@ func InitServer(conf *settings.Config) error {
 	roles, err = settings.LoadRoles()
 	if err != nil {
 		return err
+	}
+
+	backgrounds, err = settings.LoadFile("/backgrounds.txt")
+	if err != nil {
+		return err
+	} else if len(backgrounds) == 0 {
+		return fmt.Errorf("empty background list")
 	}
 
 	_, err = str2duration.ParseDuration(conf.BanLen)
@@ -93,6 +103,10 @@ func InitServer(conf *settings.Config) error {
 		default:
 			logger.LogWarningf("Area %v has an invalid or undefined evidence mode, defaulting to 'cms'.", a.Name)
 			evi_mode = area.EviCMs
+		}
+		if a.Bg == "" || !sliceutil.ContainsString(backgrounds, a.Bg) {
+			logger.LogWarningf("Area %v has an invalid or undefined background, defaulting to 'default'.", a.Name)
+			a.Bg = "default"
 		}
 		areas = append(areas, area.NewArea(a, len(characters), conf.BufSize, evi_mode))
 	}
@@ -132,17 +146,17 @@ func ListenTCP() {
 }
 
 // writeToAll sends a message to all connected clients.
-func writeToAll(message string) {
+func writeToAll(header string, contents ...string) {
 	for client := range clients.GetAllClients() {
-		client.Write(message)
+		client.SendPacket(header, contents...)
 	}
 }
 
 // writeToArea sends a message to all clients in a given area.
-func writeToArea(message string, area *area.Area) {
+func writeToArea(area *area.Area, header string, contents ...string) {
 	for client := range clients.GetAllClients() {
 		if client.Area() == area {
-			client.Write(message)
+			client.SendPacket(header, contents...)
 		}
 	}
 }
@@ -181,6 +195,7 @@ func getRole(name string) (permissions.Role, error) {
 	return permissions.Role{}, fmt.Errorf("role does not exist")
 }
 
+// getClientByUid returns the client with the given uid.
 func getClientByUid(uid int) (*Client, error) {
 	for c := range clients.GetAllClients() {
 		if c.Uid() == uid {
@@ -190,6 +205,7 @@ func getClientByUid(uid int) (*Client, error) {
 	return nil, fmt.Errorf("client does not exist")
 }
 
+// getClientsByIpid returns all clients with the given ipid.
 func getClientsByIpid(ipid string) []*Client {
 	var returnlist []*Client
 	for c := range clients.GetAllClients() {
@@ -198,6 +214,11 @@ func getClientsByIpid(ipid string) []*Client {
 		}
 	}
 	return returnlist
+}
+
+// sendAreaServerMessage sends a server OOC message to all clients in an area.
+func sendAreaServerMessage(area *area.Area, message string) {
+	writeToArea(area, "CT", encode(config.Name), encode(message), "1")
 }
 
 // CleanupServer closes all connections to the server, and closes the server's database.

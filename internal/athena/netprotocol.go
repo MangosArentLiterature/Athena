@@ -76,7 +76,7 @@ func pktHdid(client *Client, p *packet.Packet) {
 
 	client.CheckBanned(db.HDID)
 
-	client.Write(fmt.Sprintf("ID#0#Athena#%v#%%", version)) // Why does the client need this? Nobody knows.
+	client.SendPacket("ID", "0", "Athena", encode(version)) // Why does the client need this? Nobody knows.
 }
 
 // Handles ID#%
@@ -84,11 +84,10 @@ func pktId(client *Client, p *packet.Packet) {
 	if client.Uid() != -1 {
 		return
 	}
-	client.Write(fmt.Sprintf("PN#%v#%v#%v#%%", players.GetPlayerCount(), config.MaxPlayers, encode(config.Desc)))
-	fl := []string{"noencryption", "yellowtext", "prezoom", "flipping", "customobjections",
+	client.SendPacket("PN", strconv.Itoa(players.GetPlayerCount()), strconv.Itoa(config.MaxPlayers), encode(config.Desc))
+	client.SendPacket("FL", "noencryption", "yellowtext", "prezoom", "flipping", "customobjections",
 		"fastloading", "deskmod", "evidence", "cccc_ic_support", "arup", "casing_alerts",
-		"looping_sfx", "additive", "effects", "y_offset", "expanded_desk_mods", "auth_packet"} // god this is cursed
-	client.Write(fmt.Sprintf("FL#%v#%%", strings.Join(fl, "#")))
+		"looping_sfx", "additive", "effects", "y_offset", "expanded_desk_mods", "auth_packet") // god this is cursed
 }
 
 // Handles askchaa#%
@@ -98,22 +97,22 @@ func pktResCount(client *Client, _ *packet.Packet) {
 	}
 	if players.GetPlayerCount() >= config.MaxPlayers {
 		logger.LogInfo("Player limit reached")
-		client.Write("BD#This server is full#%")
+		client.SendPacket("BD", "This server is currently full.")
 		client.conn.Close()
 		return
 	}
 	client.joining = true // This simply exists to prevent skipping the askchaa#% packet and bypassing the player count check.
-	client.Write(fmt.Sprintf("SI#%v#%v#%v#%%", len(characters), 0, len(music)))
+	client.SendPacket("SI", strconv.Itoa(len(characters)), strconv.Itoa(len(areas[0].Evidence())), strconv.Itoa(len(music)))
 }
 
 // Handles RC#%
 func pktReqChar(client *Client, _ *packet.Packet) {
-	client.Write(fmt.Sprintf("SC#%v#%%", strings.Join(characters, "#")))
+	client.SendPacket("SC", characters...)
 }
 
 // Handles RM#%
 func pktReqAM(client *Client, _ *packet.Packet) {
-	client.Write(fmt.Sprintf("SM#%v#%v#%%", areaNames, strings.Join(music, "#")))
+	client.write(fmt.Sprintf("SM#%v#%v#%%", areaNames, strings.Join(music, "#")))
 }
 
 // Handles RD#%
@@ -123,16 +122,9 @@ func pktReqDone(client *Client, _ *packet.Packet) {
 	}
 	client.SetUid(uids.GetUid())
 	players.AddPlayer()
-	client.SetArea(areas[0])
-	client.Area().AddChar(-1)
-	sendPlayerArup()
-	def, pro := client.Area().HP()
-	client.Write(fmt.Sprintf("LE#%v#%%", strings.Join(client.Area().Evidence(), "#")))
-	client.Write(fmt.Sprintf("CharsCheck#%v#%%", strings.Join(client.Area().Taken(), "#")))
-	client.Write(fmt.Sprintf("HP#1#%v#%%", def))
-	client.Write(fmt.Sprintf("HP#2#%v#%%", pro))
+	client.JoinArea(areas[0])
+	client.SendPacket("DONE")
 	logger.LogInfof("Client (IPID:%v UID:%v) joined the server", client.Ipid(), client.Uid())
-	client.Write("DONE#%")
 }
 
 // Handles CC#%
@@ -143,8 +135,8 @@ func pktChangeChar(client *Client, p *packet.Packet) {
 	}
 	if client.Area().SwitchChar(client.CharID(), newid) {
 		client.SetCharID(newid)
-		client.Write(fmt.Sprintf("PV#0#CID#%v#%%", newid))
-		writeToArea(fmt.Sprintf("CharsCheck#%v#%%", strings.Join(client.Area().Taken(), "#")), client.Area())
+		client.SendPacket("PV", "0", "CID", strconv.Itoa(newid))
+		writeToArea(client.Area(), "CharsCheck", client.Area().Taken()...)
 	}
 }
 
@@ -196,10 +188,10 @@ func pktIC(client *Client, p *packet.Packet) {
 	if args[24] == "" {
 		args[24] = "0"
 	}
-	if args[28] == "" || client.CharID() != client.Area().LastMsgID() {
+	if args[28] == "" || client.CharID() != client.Area().LastSpeaker() {
 		args[28] = "0"
 	}
-	if client.Area().NoInterrupt() || args[22] == "1" {
+	if (client.Area().NoInterrupt() && emote_mod != 0) || args[22] == "1" {
 		args[22] = "1"
 		if emote_mod == 1 || emote_mod == 2 {
 			args[7] = "0"
@@ -293,8 +285,8 @@ func pktIC(client *Client, p *packet.Packet) {
 
 	client.SetPairInfo(args[2], args[3], args[12], args[19])
 	client.SetLastMsg(p.Body[4])
-	client.Area().SetLastMsgID(client.CharID())
-	writeToArea(fmt.Sprintf("MS#%v#%%", strings.Join(args, "#")), client.Area())
+	client.Area().SetLastSpeaker(client.CharID())
+	writeToArea(client.Area(), "MS", args...)
 	addToBuffer(client, "IC", "\""+p.Body[4]+"\"", false)
 }
 
@@ -322,28 +314,17 @@ func pktAM(client *Client, p *packet.Packet) {
 		if len(p.Body) > 3 {
 			effects = p.Body[3]
 		}
-		writeToArea(fmt.Sprintf("MC#%v#%v#%v#1#0#%v#%%", song, p.Body[1], name, effects), client.Area())
+		writeToArea(client.Area(), "MC", song, p.Body[1], name, "1", "0", effects)
 	} else if strings.Contains(areaNames, p.Body[0]) {
 		if decode(p.Body[0]) == client.Area().Name() {
 			return
 		}
 		for _, area := range areas {
 			if area.Name() == decode(p.Body[0]) {
-				if !area.AddChar(client.CharID()) {
-					client.SetCharID(-1)
-					area.AddChar(-1)
-					client.Write("DONE#%")
-				}
 				addToBuffer(client, "AREA", "Left area.", false)
-				client.Area().RemoveChar(client.CharID())
-				client.SetArea(area)
-				def, pro := client.Area().HP()
-				client.Write(fmt.Sprintf("LE#%v#%%", strings.Join(client.Area().Evidence(), "#")))
-				client.Write(fmt.Sprintf("HP#1#%v#%%", def))
-				client.Write(fmt.Sprintf("HP#2#%v#%%", pro))
-				sendPlayerArup()
-				writeToArea(fmt.Sprintf("CharsCheck#%v#%%", strings.Join(client.Area().Taken(), "#")), client.Area())
+				client.ChangeArea(area)
 				addToBuffer(client, "AREA", "Joined area.", false)
+				return
 			}
 		}
 	}
@@ -363,7 +344,7 @@ func pktHP(client *Client, p *packet.Packet) {
 	if !client.Area().SetHP(bar, value) {
 		return
 	}
-	writeToArea(fmt.Sprintf("HP#%v#%v#%%", p.Body[0], p.Body[1]), client.Area())
+	writeToArea(client.Area(), "HP", p.Body[0], p.Body[1])
 
 	var side string
 	switch bar {
@@ -380,7 +361,7 @@ func pktWTCE(client *Client, p *packet.Packet) {
 	if client.CharID() == -1 {
 		return
 	}
-	writeToArea(fmt.Sprintf("RT#%v#%%", p.Body[0]), client.Area())
+	writeToArea(client.Area(), "RT", p.Body[0])
 	addToBuffer(client, "JUD", "Played WT/CE animation.", false)
 }
 
@@ -411,7 +392,7 @@ func pktOOC(client *Client, p *packet.Packet) {
 		return
 	}
 
-	writeToArea(fmt.Sprintf("CT#%v#%v#0#%%", encode(client.OOCName()), p.Body[1]), client.Area())
+	writeToArea(client.Area(), "CT", encode(client.oocName), p.Body[1], "0")
 	addToBuffer(client, "OOC", "\""+p.Body[1]+"\"", false)
 }
 
@@ -421,7 +402,7 @@ func pktAddEvi(client *Client, p *packet.Packet) {
 		return
 	}
 	client.Area().AddEvidence(strings.Join(p.Body, "&"))
-	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.Area().Evidence(), "#")), client.Area())
+	writeToArea(client.Area(), "LE", client.Area().Evidence()...)
 	addToBuffer(client, "EVI", fmt.Sprintf("Added evidence: %v | %v", p.Body[0], p.Body[1]), false)
 }
 
@@ -435,7 +416,7 @@ func pktRemoveEvi(client *Client, p *packet.Packet) {
 		return
 	}
 	client.Area().RemoveEvidence(id)
-	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.Area().Evidence(), "#")), client.Area())
+	writeToArea(client.Area(), "LE", client.Area().Evidence()...)
 	addToBuffer(client, "EVI", fmt.Sprintf("Removed evidence %v.", id), false)
 }
 
@@ -449,13 +430,13 @@ func pktEditEvi(client *Client, p *packet.Packet) {
 		return
 	}
 	client.Area().EditEvidence(id, strings.Join(p.Body[1:], "&"))
-	writeToArea(fmt.Sprintf("LE#%v#%%", strings.Join(client.Area().Evidence(), "#")), client.Area())
+	writeToArea(client.Area(), "LE", client.Area().Evidence()...)
 	addToBuffer(client, "EVI", fmt.Sprintf("Updated evidence %v to %v | %v", id, p.Body[1], p.Body[2]), false)
 }
 
 // Handles CH#%
 func pktPing(client *Client, _ *packet.Packet) {
-	client.Write("CHECK#%")
+	client.SendPacket("CHECK")
 }
 
 // Handles ZZ#%
@@ -466,7 +447,7 @@ func pktModcall(client *Client, p *packet.Packet) {
 	}
 	for c := range clients.GetAllClients() {
 		if c.Authenticated() {
-			c.Write(fmt.Sprintf("ZZ#[%v] %v (%v): %v#%%", client.Area().Name(), client.CurrentCharacter(), client.Ipid(), s))
+			c.SendPacket("ZZ", fmt.Sprintf("[%v] %v (%v): %v", client.Area().Name(), client.CurrentCharacter(), client.Ipid(), s))
 		}
 	}
 	logger.WriteReport(client.Area().Name(), client.Area().Buffer())
@@ -483,7 +464,7 @@ func pktSetCase(client *Client, p *packet.Packet) {
 		if err != nil {
 			return
 		}
-		client.SetCasePref(i, b)
+		client.SetRoleAlert(i, b)
 	}
 }
 
@@ -510,8 +491,8 @@ func pktCaseAnn(client *Client, p *packet.Packet) {
 			if err != nil {
 				return
 			}
-			if b && c.CasePref(i) {
-				c.Write(newPacket)
+			if b && c.AlertRole(i) {
+				c.write(newPacket)
 				break
 			}
 		}

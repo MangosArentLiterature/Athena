@@ -18,6 +18,7 @@ package athena
 
 import "strconv"
 
+// getKBList is a helper function to get a list of clients to kick or ban.
 func getKBList(usedList *[]string, useUid bool) []*Client {
 	var l []*Client
 	for _, s := range *usedList {

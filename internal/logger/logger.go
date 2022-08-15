@@ -59,42 +59,52 @@ func log(level LogLevel, s string) {
 	outputLock.Unlock()
 }
 
+// LogDebug prints a debug message to stdout. Arguments are handled in the manner of fmt.Print.
 func LogDebug(s string) {
 	log(Debug, s)
 }
 
+// LogDebugf prints a debug message to stdout. Arguments are handled in the manner of fmt.Printf.
 func LogDebugf(format string, v ...interface{}) {
 	log(Debug, fmt.Sprintf(format, v...))
 }
 
+// LogInfo prints an info message to stdout. Arguments are handled in the manner of fmt.Print.
 func LogInfo(s string) {
 	log(Info, s)
 }
 
+// LogInfof prints an info message to stdout. Arguments are handled in the manner of fmt.Printf.
 func LogInfof(format string, v ...interface{}) {
 	log(Info, fmt.Sprintf(format, v...))
 }
 
+// LogWarning prints a warning message to stdout. Arguments are handled in the manner of fmt.Print.
 func LogWarning(s string) {
 	log(Warning, s)
 }
 
+// LogWarningf prints a warning message to stdout. Arguments are handled in the manner of fmt.Printf.
 func LogWarningf(format string, v ...interface{}) {
 	log(Warning, fmt.Sprintf(format, v...))
 }
 
+// LogError prints an error message to stdout. Arguments are handled in the manner of fmt.Print.
 func LogError(s string) {
 	log(Error, s)
 }
 
+// LogErrorf prints an error message to stdout. Arguments are handled in the manner of fmt.Printf.
 func LogErrorf(format string, v ...interface{}) {
 	log(Error, fmt.Sprintf(format, v...))
 }
 
+// LogFatal prints a fatal error message to stdout. Arguments are handled in the manner of fmt.Print.
 func LogFatal(s string) {
 	log(Fatal, s)
 }
 
+// LogFatalf prints a fatal error message to stdout. Arguments are handled in the manner of fmt.Printf.
 func LogFatalf(format string, v ...interface{}) {
 	log(Fatal, fmt.Sprintf(format, v...))
 }
@@ -109,6 +119,7 @@ func WriteReport(name string, buffer []string) {
 	fileLock.Unlock()
 }
 
+// WriteAudit writes a line to the server's audit log.
 func WriteAudit(s string) {
 	fileLock.Lock()
 	f, err := os.OpenFile(LogPath+"/audit.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0755)

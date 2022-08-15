@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -60,7 +61,7 @@ type Client struct {
 	case_prefs    [5]bool
 }
 
-// Returns a new client.
+// NewClient returns a new client.
 func NewClient(conn net.Conn) *Client {
 	return &Client{
 		conn: conn,
@@ -87,7 +88,7 @@ func (client *Client) HandleClient() {
 
 	go timeout(client)
 
-	client.Write("decryptor#NOENCRYPT#%") // Relic of FantaCrypt. AO2 requires a server to send this to proceed with the handshake.
+	client.SendPacket("decryptor", "NOENCRYPT") // Relic of FantaCrypt. AO2 requires a server to send this to proceed with the handshake.
 	input := bufio.NewScanner(client.conn)
 
 	splitfn := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
@@ -123,14 +124,19 @@ func (client *Client) HandleClient() {
 	logger.LogDebugf("%v disconnected", client.ipid)
 }
 
-// Writes a string to the client's network socket.
-func (client *Client) Write(message string) {
+// write sends the given message to the client's network socket.
+func (client *Client) write(message string) {
 	client.mu.Lock()
 	fmt.Fprint(client.conn, message)
 	if logger.DebugNetwork {
 		logger.LogDebugf("To %v: %v", client.ipid, message)
 	}
 	client.mu.Unlock()
+}
+
+// SendPacket sends the client a packet with the given header and contents.
+func (client *Client) SendPacket(header string, contents ...string) {
+	client.write(header + "#" + strings.Join(contents, "#") + "#%")
 }
 
 // clientClenup cleans up a disconnected client.
@@ -148,9 +154,10 @@ func (client *Client) clientCleanup() {
 
 // SendServerMessage sends a server OOC message to the client.
 func (client *Client) SendServerMessage(message string) {
-	client.Write(fmt.Sprintf("CT#%v#%v#1#%%", encode(config.Name), encode(message)))
+	client.SendPacket("CT", encode(config.Name), encode(message), "1")
 }
 
+// CurrentCharacter returns the client's current character name.
 func (client *Client) CurrentCharacter() string {
 	if client.CharID() == -1 {
 		return "Spectator"
@@ -167,182 +174,212 @@ func timeout(client *Client) {
 	}
 }
 
+// Hdid returns the client's hdid.
 func (client *Client) Hdid() string {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.hdid
 }
 
+// SetHdid sets the client's hdid.
 func (client *Client) SetHdid(hdid string) {
 	client.mu.Lock()
 	client.hdid = hdid
 	client.mu.Unlock()
 }
 
+// Uid returns the client's user ID.
 func (client *Client) Uid() int {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.uid
 }
 
+// SetUid sets the client's user ID.
 func (client *Client) SetUid(id int) {
 	client.mu.Lock()
 	client.uid = id
 	client.mu.Unlock()
 }
 
+// Area returns the client's current area.
 func (client *Client) Area() *area.Area {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.area
 }
 
+// SetArea sets the client's current area.
 func (client *Client) SetArea(area *area.Area) {
 	client.mu.Lock()
 	client.area = area
 	client.mu.Unlock()
 }
 
+// CharID returns the client's character ID.
 func (client *Client) CharID() int {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.char
 }
 
+// SetCharID sets the client's character ID.
 func (client *Client) SetCharID(id int) {
 	client.mu.Lock()
 	client.char = id
 	client.mu.Unlock()
 }
 
+// Ipid returns the client's ipid.
 func (client *Client) Ipid() string {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.ipid
 }
 
+// OOCName returns the client's current OOC username.
 func (client *Client) OOCName() string {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.oocName
 }
 
+// SetOocName sets the client's OOC username.
 func (client *Client) SetOocName(name string) {
 	client.mu.Lock()
 	client.oocName = name
 	client.mu.Unlock()
 }
 
+// LastMsg returns the client's last sent IC message.
 func (client *Client) LastMsg() string {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.lastmsg
 }
 
+// SetLastMsg sets the client's last sent IC message.
 func (client *Client) SetLastMsg(msg string) {
 	client.mu.Lock()
 	client.lastmsg = msg
 	client.mu.Unlock()
 }
 
+// Perms returns the client's current permissions.
 func (client *Client) Perms() uint64 {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.perms
 }
 
+// SetPerms sets the client's permissionss.
 func (client *Client) SetPerms(perms uint64) {
 	client.mu.Lock()
 	client.perms = perms
 	client.mu.Unlock()
 }
 
+// Authenticated returns whether the client is logged in as a moderator.
 func (client *Client) Authenticated() bool {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.authenticated
 }
 
+// SetAuthenticated sets whether the client is logged in as a moderator.
 func (client *Client) SetAuthenticated(auth bool) {
 	client.mu.Lock()
 	client.authenticated = auth
 	client.mu.Unlock()
 }
 
+// ModName returns the client's moderator username.
 func (client *Client) ModName() string {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.mod_name
 }
 
+// SetModName sets the client's moderator username.
 func (client *Client) SetModName(name string) {
 	client.mu.Lock()
 	client.mod_name = name
 	client.mu.Unlock()
 }
 
+// Pos returns the client's current position.
 func (client *Client) Pos() string {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.pos
 }
 
+// SetPos sets the client's position.
 func (client *Client) SetPos(pos string) {
 	client.mu.Lock()
 	client.pos = pos
 	client.mu.Unlock()
 }
 
+// CasePrefs returns all client's case preferences.
 func (client *Client) CasePrefs() [5]bool {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.case_prefs
 }
 
-func (client *Client) CasePref(index int) bool {
+// CasePref returns a client's role alert preference.
+func (client *Client) AlertRole(index int) bool {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.case_prefs[index]
 }
 
-func (client *Client) SetCasePref(index int, b bool) {
+// SetCasePref sets a client's role alert preference.
+func (client *Client) SetRoleAlert(index int, b bool) {
 	client.mu.Lock()
 	client.case_prefs[index] = b
 	client.mu.Unlock()
 }
 
+// PairInfo returns a client's pairing info.
 func (client *Client) PairInfo() ClientPairInfo {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.pair
 }
 
+// SetPairInfo updates a client's pairing info.
 func (client *Client) SetPairInfo(name string, emote string, flip string, offset string) {
 	client.mu.Lock()
 	client.pair.name, client.pair.emote, client.pair.flip, client.pair.offset = name, emote, flip, offset
 	client.mu.Unlock()
 }
 
+// PairWantedID returns the character the client wishes to pair with.
 func (client *Client) PairWantedID() int {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.pair.wanted_id
 }
 
+// SetPairWantedID sets the character the client wishes to pair with.
 func (client *Client) SetPairWantedID(id int) {
 	client.mu.Lock()
 	client.pair.wanted_id = id
 	client.mu.Unlock()
 }
 
+// RemoveAuth logs a client out as moderator.
 func (client *Client) RemoveAuth() {
 	client.mu.Lock()
 	client.authenticated, client.perms, client.mod_name = false, 0, ""
 	client.mu.Unlock()
 	client.SendServerMessage("Logged out as moderator.")
-	client.Write("AUTH#-1#%")
+	client.SendPacket("AUTH", "-1")
 }
 
+// CheckBanned returns if a client is currently banned.
 func (client *Client) CheckBanned(by db.BanLookup) {
 	var banned bool
 	var baninfo db.BanInfo
@@ -367,8 +404,35 @@ func (client *Client) CheckBanned(by db.BanLookup) {
 		} else {
 			duration = time.Unix(baninfo.Duration, 0).UTC().Format("02 Jan 2006 15:04 MST")
 		}
-		client.Write(fmt.Sprintf("BD#%v\nUntil: %v\nID: %v#%%", baninfo.Reason, duration, baninfo.Id))
+		client.SendPacket("BD", fmt.Sprintf("%v\nUntil: %v\nID: %v", baninfo.Reason, duration, baninfo.Id))
 		client.conn.Close()
 		return
+	}
+}
+
+// JoinArea adds a client to an area.
+func (client *Client) JoinArea(area *area.Area) {
+	client.SetArea(area)
+	area.AddChar(client.CharID())
+	def, pro := area.HP()
+	client.SendPacket("LE", areas[0].Evidence()...)
+	client.SendPacket("CharsCheck", area.Taken()...)
+	client.SendPacket("HP", "1", strconv.Itoa(def))
+	client.SendPacket("HP", "2", strconv.Itoa(pro))
+	client.SendPacket("BN", area.Background())
+	sendPlayerArup()
+}
+
+// ChangeArea changes the client's current area.
+func (client *Client) ChangeArea(area *area.Area) {
+	client.Area().RemoveChar(client.CharID())
+	if area.IsTaken(client.CharID()) {
+		client.SetCharID(-1)
+	}
+	client.JoinArea(area)
+	if client.CharID() == -1 {
+		client.SendPacket("DONE")
+	} else {
+		writeToArea(area, "CharsCheck", area.Taken()...)
 	}
 }
