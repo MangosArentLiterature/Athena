@@ -124,6 +124,7 @@ func pktReqDone(client *Client, _ *packet.Packet) {
 	players.AddPlayer()
 	client.JoinArea(areas[0])
 	client.SendPacket("DONE")
+	sendCMArup()
 	logger.LogInfof("Client (IPID:%v UID:%v) joined the server", client.Ipid(), client.Uid())
 }
 
@@ -473,7 +474,7 @@ func pktCaseAnn(client *Client, p *packet.Packet) {
 	// Let future generations know I spent far too long trying to make this work.
 	// Partially because of my own stupidity, and partially because this is the worst packet in AO2.
 
-	if client.CharID() == -1 || !client.area.HasCM(client.Uid()) {
+	if client.CharID() == -1 || !client.HasCMPermission() {
 		return
 	}
 	newPacket := fmt.Sprintf("CASEA#CASE ANNOUNCEMENT: %v in %v needs players for %v#%v#1#%%",

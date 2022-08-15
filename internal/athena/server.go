@@ -177,12 +177,34 @@ func addToBuffer(client *Client, action string, message string, audit bool) {
 
 // sendPlayerArup sends a player ARUP update to all connected clients.
 func sendPlayerArup() {
-	var plCounts []string
+	plCounts := []string{"0"}
 	for _, a := range areas {
 		s := strconv.Itoa(a.PlayerCount())
 		plCounts = append(plCounts, s)
 	}
-	writeToAll(fmt.Sprintf("ARUP#0#%v#%%", strings.Join(plCounts, "#")))
+	writeToAll("ARUP", plCounts...)
+}
+
+func sendCMArup() {
+	returnL := []string{"2"}
+	for _, a := range areas {
+		var cms []string
+		var uids []int
+		uids = append(uids, a.CMs()...)
+		if len(uids) == 0 {
+			returnL = append(returnL, "None")
+			continue
+		}
+		for _, u := range uids {
+			c, err := getClientByUid(u)
+			if err != nil {
+				continue
+			}
+			cms = append(cms, fmt.Sprintf("%v (%v)", c.CurrentCharacter(), u))
+		}
+		returnL = append(returnL, strings.Join(cms, ", "))
+	}
+	writeToAll("ARUP", returnL...)
 }
 
 // getRole returns the role with the corresponding name, or an error if the role does not exist.

@@ -20,7 +20,6 @@ import (
 	"flag"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -59,7 +58,7 @@ type cmdMapValue struct {
 var commands = map[string]cmdMapValue{
 	"about":    {0, "Usage: /about", "Prints Athena version information.", permissions.PermissionField["NONE"], cmdAbout},
 	"login":    {2, "Usage: /login <username> <password>", "Logs in as moderator.", permissions.PermissionField["NONE"], cmdLogin},
-	"logout":   {1, "Usage: /logout", "Logs out as moderator.", permissions.PermissionField["NONE"], cmdLogout},
+	"logout":   {0, "Usage: /logout", "Logs out as moderator.", permissions.PermissionField["NONE"], cmdLogout},
 	"mkusr":    {3, "Usage: /mkusr <username> <password> <role>", "Creates a new moderator user.", permissions.PermissionField["ADMIN"], cmdMakeUser},
 	"rmusr":    {1, "Usage: /rmusr <username>", "Removes a moderator user.", permissions.PermissionField["ADMIN"], cmdRemoveUser},
 	"setrole":  {2, "Usage: /setrole <username> <role>", "Updates a moderator user's role.", permissions.PermissionField["ADMIN"], cmdChangeRole},
@@ -67,6 +66,8 @@ var commands = map[string]cmdMapValue{
 	"kickarea": {1, "Usage: /kickarea <uid1>,<uid2>...", "Kicks user(s) from the area.", permissions.PermissionField["CM"], cmdAreaKick},
 	"ban":      {3, "Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>", "Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
 	"bg":       {1, "Usage: /bg <background>", "Sets the area's background.", permissions.PermissionField["CM"], cmdBg},
+	"cm":       {0, "Usage: /cm [uid1],[uid2]...", "Adds CM(s) to the area.", permissions.PermissionField["NONE"], cmdCM},
+	"uncm":     {0, "Usage: /uncm [uid1],[uid2]...", "Removes CM(s) from the area.", permissions.PermissionField["CM"], cmdUnCM},
 }
 
 // ParseCommand calls the appropriate function for a given command.
@@ -87,7 +88,7 @@ func ParseCommand(client *Client, command string, args []string) {
 	if cmd.Func == nil {
 		client.SendServerMessage("Invalid command.")
 		return
-	} else if permissions.HasPermission(client.Perms(), cmd.Permission) || (cmd.Permission == permissions.PermissionField["CM"] && client.area.HasCM(client.uid)) {
+	} else if permissions.HasPermission(client.Perms(), cmd.Permission) || (cmd.Permission == permissions.PermissionField["CM"] && client.Area().HasCM(client.Uid())) {
 		if sliceutil.ContainsString(args, "-h") {
 			client.SendServerMessage(cmd.Usage)
 			return
@@ -216,19 +217,16 @@ func cmdKick(client *Client, args []string, usage string) {
 		return
 	}
 
-	var usedList *[]string
-	var useUid bool
+	var toKick []*Client
 	if len(*uids) > 0 {
-		useUid = true
-		usedList = uids
+		toKick = getUidList(*uids)
 	} else if len(*ipids) > 0 {
-		usedList = ipids
+		toKick = getIpidList(*ipids)
 	} else {
 		client.SendServerMessage("Not enough arguments:\n" + usage)
 		return
 	}
 
-	toKick := getKBList(usedList, useUid)
 	var count int
 	var report string
 	reason := strings.Join(flags.Args(), " ")
@@ -259,13 +257,11 @@ func cmdBan(client *Client, args []string, usage string) {
 		return
 	}
 
-	var useUid bool
-	var usedList *[]string
+	var toBan []*Client
 	if len(*uids) > 0 {
-		useUid = true
-		usedList = uids
+		toBan = getUidList(*uids)
 	} else if len(*ipids) > 0 {
-		usedList = ipids
+		toBan = getIpidList(*ipids)
 	} else {
 		client.SendServerMessage("Not enough arguments:\n" + usage)
 		return
@@ -284,7 +280,6 @@ func cmdBan(client *Client, args []string, usage string) {
 		until = time.Now().UTC().Add(parsedDur).Unix()
 	}
 
-	toBan := getKBList(usedList, useUid)
 	var count int
 	var report string
 	for _, c := range toBan {
@@ -317,18 +312,7 @@ func cmdAreaKick(client *Client, args []string, usage string) {
 		client.SendServerMessage("Failed to kick: Cannot kick a user from area 0.")
 		return
 	}
-	var toKick []*Client
-	for _, s := range strings.Split(args[0], ",") {
-		uid, err := strconv.Atoi(s)
-		if err != nil || uid == -1 {
-			continue
-		}
-		c, err := getClientByUid(uid)
-		if err != nil {
-			continue
-		}
-		toKick = append(toKick, c)
-	}
+	toKick := getUidList(strings.Split(args[0], ","))
 
 	var count int
 	for _, c := range toKick {
@@ -360,4 +344,66 @@ func cmdBg(client *Client, args []string, usage string) {
 func cmdAbout(client *Client, _ []string, _ string) {
 	client.SendServerMessage(fmt.Sprintf("Running Athena version %v.\nAthena is open source software; for documentation, bug reports, and source code, see: %v",
 		version, "https://github.com/MangosArentLiterature/Athena."))
+}
+
+// Handles /cm
+func cmdCM(client *Client, args []string, usage string) {
+	if client.CharID() == -1 {
+		client.SendServerMessage("You are spectating; you cannot become a CM.")
+		return
+	} else if !client.Area().CMsAllowed() && !client.HasCMPermission() {
+		client.SendServerMessage("You do not have permission to use that command.")
+		return
+	}
+
+	if len(args) == 0 {
+		if client.Area().HasCM(client.Uid()) {
+			client.SendServerMessage("You are already a CM in this area.")
+			return
+		}
+		client.Area().AddCM(client.Uid())
+		client.SendServerMessage("Successfully became a CM.")
+	} else {
+		if !client.HasCMPermission() {
+			client.SendServerMessage("You do not have permission to use that command.")
+			return
+		}
+		toCM := getUidList(strings.Split(args[0], ","))
+		var count int
+		for _, c := range toCM {
+			if c.Area() != client.Area() || c.Area().HasCM(c.Uid()) {
+				continue
+			}
+			c.Area().AddCM(c.Uid())
+			c.SendServerMessage("You have become a CM in this area.")
+			count++
+		}
+		client.SendServerMessage(fmt.Sprintf("CMed %v users.", count))
+	}
+	sendCMArup()
+}
+
+// Handles /uncm
+func cmdUnCM(client *Client, args []string, usage string) {
+	if len(args) == 0 {
+		if !client.Area().HasCM(client.Uid()) {
+			client.SendServerMessage("You are not a CM in this area.")
+			return
+		}
+		client.Area().RemoveCM(client.Uid())
+		client.SendServerMessage("You are no longer a CM in this area.")
+	} else {
+		toCM := getUidList(strings.Split(args[0], ","))
+		var count int
+		for _, c := range toCM {
+			if c.Area() != client.Area() || !c.Area().HasCM(c.Uid()) {
+				continue
+			}
+			c.Area().RemoveCM(c.Uid())
+			c.SendServerMessage("You are no longer a CM in this area.")
+			count++
+		}
+		client.SendServerMessage(fmt.Sprintf("Un-CMed %v users.", count))
+	}
+	sendCMArup()
 }

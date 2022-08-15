@@ -16,26 +16,33 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
 package athena
 
-import "strconv"
+import (
+	"strconv"
+)
 
-// getKBList is a helper function to get a list of clients to kick or ban.
-func getKBList(usedList *[]string, useUid bool) []*Client {
+// getUidList returns a list of clients that have the given UID(s).
+func getUidList(uids []string) []*Client {
 	var l []*Client
-	for _, s := range *usedList {
-		if useUid {
-			x, err := strconv.Atoi(s)
-			if err != nil || x == -1 {
-				continue
-			}
-			c, err := getClientByUid(x)
-			if err != nil {
-				continue
-			}
-			l = append(l, c)
-		} else {
-			c := getClientsByIpid(s)
-			l = append(l, c...)
+	for _, s := range uids {
+		uid, err := strconv.Atoi(s)
+		if err != nil || uid == -1 {
+			continue
 		}
+		c, err := getClientByUid(uid)
+		if err != nil {
+			continue
+		}
+		l = append(l, c)
+	}
+	return l
+}
+
+// getIpidList returns a list of clients that have the given IPID(s).
+func getIpidList(ipids []string) []*Client {
+	var l []*Client
+	for _, s := range ipids {
+		c := getClientsByIpid(s)
+		l = append(l, c...)
 	}
 	return l
 }

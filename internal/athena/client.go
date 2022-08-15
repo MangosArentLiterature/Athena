@@ -32,6 +32,7 @@ import (
 	"github.com/MangosArentLiterature/Athena/internal/db"
 	"github.com/MangosArentLiterature/Athena/internal/logger"
 	"github.com/MangosArentLiterature/Athena/internal/packet"
+	"github.com/MangosArentLiterature/Athena/internal/permissions"
 )
 
 type ClientPairInfo struct {
@@ -425,6 +426,10 @@ func (client *Client) JoinArea(area *area.Area) {
 
 // ChangeArea changes the client's current area.
 func (client *Client) ChangeArea(area *area.Area) {
+	if client.Area().HasCM(client.Uid()) {
+		client.Area().RemoveCM(client.Uid())
+		sendCMArup()
+	}
 	client.Area().RemoveChar(client.CharID())
 	if area.IsTaken(client.CharID()) {
 		client.SetCharID(-1)
@@ -434,5 +439,13 @@ func (client *Client) ChangeArea(area *area.Area) {
 		client.SendPacket("DONE")
 	} else {
 		writeToArea(area, "CharsCheck", area.Taken()...)
+	}
+}
+
+func (client *Client) HasCMPermission() bool {
+	if client.Area().HasCM(client.Uid()) || permissions.HasPermission(client.Perms(), permissions.PermissionField["CM"]) {
+		return true
+	} else {
+		return false
 	}
 }

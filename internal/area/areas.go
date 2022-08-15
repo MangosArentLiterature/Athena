@@ -51,6 +51,7 @@ type AreaData struct {
 	Allow_iniswap bool   `toml:"allow_iniswap"`
 	Force_noint   bool   `toml:"force_nointerrupt"`
 	Bg            string `toml:"background"`
+	Allow_cms     bool   `toml:"allow_cms"`
 	// lock_bg       bool         `toml:"lock_bg"`
 	// force_bglist  bool         `toml:"enforce_bglist"`
 	// lock_music    bool         `toml:"restrict_music"`
@@ -321,4 +322,10 @@ func (a *Area) IsTaken(char int) bool {
 	} else {
 		return false
 	}
+}
+
+func (a *Area) CMsAllowed() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.data.Allow_cms
 }
