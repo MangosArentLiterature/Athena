@@ -192,7 +192,7 @@ func sendCMArup() {
 		var uids []int
 		uids = append(uids, a.CMs()...)
 		if len(uids) == 0 {
-			returnL = append(returnL, "None")
+			returnL = append(returnL, "FREE")
 			continue
 		}
 		for _, u := range uids {
