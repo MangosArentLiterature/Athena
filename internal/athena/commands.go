@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MangosArentLiterature/Athena/internal/area"
 	"github.com/MangosArentLiterature/Athena/internal/db"
 	"github.com/MangosArentLiterature/Athena/internal/logger"
 	"github.com/MangosArentLiterature/Athena/internal/permissions"
@@ -68,6 +69,11 @@ var commands = map[string]cmdMapValue{
 	"bg":       {1, "Usage: /bg <background>", "Sets the area's background.", permissions.PermissionField["CM"], cmdBg},
 	"cm":       {0, "Usage: /cm [uid1],[uid2]...", "Adds CM(s) to the area.", permissions.PermissionField["NONE"], cmdCM},
 	"uncm":     {0, "Usage: /uncm [uid1],[uid2]...", "Removes CM(s) from the area.", permissions.PermissionField["CM"], cmdUnCM},
+	"status":   {1, "Usage: /status <status>", "Sets the area's status.", permissions.PermissionField["CM"], cmdStatus},
+	"lock":     {0, "Usage: /lock [-s]", "Locks the area or sets it to spectatable.", permissions.PermissionField["CM"], cmdLock},
+	"unlock":   {0, "Usage: /unlock", "Unlocks the area.", permissions.PermissionField["CM"], cmdUnlock},
+	"invite":   {1, "Usage: /invite <uid1>,<uid2>...", "Invites user(s) to the area.", permissions.PermissionField["CM"], cmdInvite},
+	"uninvite": {1, "Usage: /uninvite <uid1>,<uid2>...", "Uninvites user(s) to the area.", permissions.PermissionField["CM"], cmdUninvite},
 }
 
 // ParseCommand calls the appropriate function for a given command.
@@ -316,14 +322,14 @@ func cmdAreaKick(client *Client, args []string, usage string) {
 
 	var count int
 	for _, c := range toKick {
-		if c.Area() != client.Area() {
+		if c.Area() != client.Area() || permissions.HasPermission(c.Perms(), permissions.PermissionField["BYPASS_LOCK"]) {
 			continue
 		}
 		if c == client {
 			client.SendServerMessage("You can't kick yourself from the area.")
 			continue
 		}
-		client.ChangeArea(areas[0])
+		c.ChangeArea(areas[0])
 		c.SendServerMessage("You were kicked from the area!")
 		count++
 	}
@@ -359,6 +365,9 @@ func cmdCM(client *Client, args []string, usage string) {
 	if len(args) == 0 {
 		if client.Area().HasCM(client.Uid()) {
 			client.SendServerMessage("You are already a CM in this area.")
+			return
+		} else if len(client.Area().CMs()) > 0 && !permissions.HasPermission(client.Perms(), permissions.PermissionField["CM"]) {
+			client.SendServerMessage("This area already has a CM.")
 			return
 		}
 		client.Area().AddCM(client.Uid())
@@ -406,4 +415,99 @@ func cmdUnCM(client *Client, args []string, usage string) {
 		client.SendServerMessage(fmt.Sprintf("Un-CMed %v users.", count))
 	}
 	sendCMArup()
+}
+
+func cmdStatus(client *Client, args []string, _ string) {
+	switch strings.ToLower(args[0]) {
+	case "idle":
+		client.Area().SetStatus(area.StatusIdle)
+	case "looking-for-players":
+		client.Area().SetStatus(area.StatusPlayers)
+	case "casing":
+		client.Area().SetStatus(area.StatusCasing)
+	case "recess":
+		client.Area().SetStatus(area.StatusRecess)
+	case "rp":
+		client.Area().SetStatus(area.StatusRP)
+	case "gaming":
+		client.Area().SetStatus(area.StatusGaming)
+	default:
+		client.SendServerMessage("Status not recognized. Recognized statuses: idle, looking-for-players, casing, recess, rp, gaming")
+		return
+	}
+	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v set the status to %v.", client.OOCName(), args[0]))
+	sendStatusArup()
+}
+
+func cmdLock(client *Client, args []string, _ string) {
+	if sliceutil.ContainsString(args, "-s") { // Set area to spectatable.
+		client.Area().SetLock(area.LockSpectatable)
+		sendAreaServerMessage(client.Area(), fmt.Sprintf("%v set the area to spectatable.", client.OOCName()))
+	} else { // Normal lock.
+		if client.Area().Lock() == area.LockLocked {
+			client.SendServerMessage("This area is already locked.")
+			return
+		} else if client.Area() == areas[0] {
+			client.SendServerMessage("You cannot lock area 0.")
+			return
+		}
+		client.Area().SetLock(area.LockLocked)
+		sendAreaServerMessage(client.Area(), fmt.Sprintf("%v locked the area.", client.OOCName()))
+	}
+	for c := range clients.GetAllClients() {
+		if c.Area() == client.Area() {
+			c.Area().AddInvited(c.Uid())
+		}
+	}
+	sendLockArup()
+}
+
+func cmdUnlock(client *Client, _ []string, _ string) {
+	if client.Area().Lock() == area.LockFree {
+		client.SendServerMessage("This area is not locked.")
+		return
+	}
+	client.Area().SetLock(area.LockFree)
+	client.Area().ClearInvited()
+	sendLockArup()
+	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v unlocked the area.", client.OOCName()))
+}
+
+func cmdInvite(client *Client, args []string, _ string) {
+	if client.Area().Lock() == area.LockFree {
+		client.SendServerMessage("This area is unlocked.")
+		return
+	}
+	toInvite := getUidList(strings.Split(args[0], ","))
+	var count int
+	for _, c := range toInvite {
+		if client.Area().AddInvited(c.Uid()) {
+			c.SendServerMessage(fmt.Sprintf("You were invited to area %v.", client.Area().Name()))
+			count++
+		}
+	}
+	client.SendServerMessage(fmt.Sprintf("Invited %v users.", count))
+}
+
+func cmdUninvite(client *Client, args []string, _ string) {
+	if client.Area().Lock() == area.LockFree {
+		client.SendServerMessage("This area is unlocked.")
+		return
+	}
+	toUninvite := getUidList(strings.Split(args[0], ","))
+	var count int
+	for _, c := range toUninvite {
+		if c == client || client.Area().HasCM(c.Uid()) {
+			continue
+		}
+		if client.Area().RemoveInvited(c.Uid()) {
+			if c.Area() == client.Area() && client.Area().Lock() == area.LockLocked && !permissions.HasPermission(c.Perms(), permissions.PermissionField["BYPASS_LOCK"]) {
+				c.SendServerMessage("You were kicked from the area!")
+				c.ChangeArea(areas[0])
+			}
+			c.SendServerMessage(fmt.Sprintf("You were uninvited from area %v.", client.Area().Name()))
+			count++
+		}
+	}
+	client.SendServerMessage(fmt.Sprintf("Uninvited %v users.", count))
 }

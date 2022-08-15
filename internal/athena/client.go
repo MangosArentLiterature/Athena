@@ -33,6 +33,7 @@ import (
 	"github.com/MangosArentLiterature/Athena/internal/logger"
 	"github.com/MangosArentLiterature/Athena/internal/packet"
 	"github.com/MangosArentLiterature/Athena/internal/permissions"
+	"github.com/MangosArentLiterature/Athena/internal/sliceutil"
 )
 
 type ClientPairInfo struct {
@@ -425,20 +426,26 @@ func (client *Client) JoinArea(area *area.Area) {
 }
 
 // ChangeArea changes the client's current area.
-func (client *Client) ChangeArea(area *area.Area) {
+func (client *Client) ChangeArea(a *area.Area) {
+	if client.Area().PlayerCount() <= 1 && client.Area().Lock() != area.LockFree {
+		client.Area().SetLock(area.LockFree)
+		client.Area().ClearInvited()
+		sendLockArup()
+	}
+
 	if client.Area().HasCM(client.Uid()) {
 		client.Area().RemoveCM(client.Uid())
 		sendCMArup()
 	}
 	client.Area().RemoveChar(client.CharID())
-	if area.IsTaken(client.CharID()) {
+	if a.IsTaken(client.CharID()) {
 		client.SetCharID(-1)
 	}
-	client.JoinArea(area)
+	client.JoinArea(a)
 	if client.CharID() == -1 {
 		client.SendPacket("DONE")
 	} else {
-		writeToArea(area, "CharsCheck", area.Taken()...)
+		writeToArea(a, "CharsCheck", a.Taken()...)
 	}
 }
 
@@ -447,5 +454,15 @@ func (client *Client) HasCMPermission() bool {
 		return true
 	} else {
 		return false
+	}
+}
+
+func (client *Client) CanSpeak() bool {
+	if client.Area().Lock() != area.LockFree &&
+		!permissions.HasPermission(client.Perms(), permissions.PermissionField["BYPASS_LOCK"]) &&
+		!sliceutil.ContainsInt(client.Area().Invited(), client.Uid()) {
+		return false
+	} else {
+		return true
 	}
 }

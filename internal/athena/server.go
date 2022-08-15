@@ -207,6 +207,22 @@ func sendCMArup() {
 	writeToAll("ARUP", returnL...)
 }
 
+func sendStatusArup() {
+	statuses := []string{"1"}
+	for _, a := range areas {
+		statuses = append(statuses, a.Status().String())
+	}
+	writeToAll("ARUP", statuses...)
+}
+
+func sendLockArup() {
+	locks := []string{"3"}
+	for _, a := range areas {
+		locks = append(locks, a.Lock().String())
+	}
+	writeToAll("ARUP", locks...)
+}
+
 // getRole returns the role with the corresponding name, or an error if the role does not exist.
 func getRole(name string) (permissions.Role, error) {
 	for _, role := range roles {

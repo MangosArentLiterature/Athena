@@ -26,11 +26,12 @@ type Role struct {
 }
 
 var PermissionField = map[string]uint64{
-	"NONE":  0,
-	"CM":    1,
-	"KICK":  1 << 1,
-	"BAN":   1 << 2,
-	"ADMIN": math.MaxInt64,
+	"NONE":        0,
+	"CM":          1,
+	"KICK":        1 << 1,
+	"BAN":         1 << 2,
+	"BYPASS_LOCK": 1 << 3,
+	"ADMIN":       math.MaxInt64,
 }
 
 // GetPermissions returns the permissions for a role.

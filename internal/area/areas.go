@@ -24,11 +24,26 @@ import (
 )
 
 type EvidenceMode int
+type Status int
+type Lock int
 
 const (
 	EviNone EvidenceMode = iota
 	EviAny
 	EviCMs
+)
+const (
+	StatusIdle Status = iota
+	StatusPlayers
+	StatusCasing
+	StatusRecess
+	StatusRP
+	StatusGaming
+)
+const (
+	LockFree Lock = iota
+	LockSpectatable
+	LockLocked
 )
 
 type Area struct {
@@ -43,6 +58,9 @@ type Area struct {
 	cms      []int
 	last_msg int
 	evi_mode EvidenceMode
+	status   Status
+	lock     Lock
+	invited  []int
 }
 
 type AreaData struct {
@@ -328,4 +346,92 @@ func (a *Area) CMsAllowed() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.data.Allow_cms
+}
+
+func (a *Area) Status() Status {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.status
+}
+
+func (a *Area) SetStatus(status Status) {
+	a.mu.Lock()
+	a.status = status
+	a.mu.Unlock()
+}
+
+func (a *Area) Lock() Lock {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.lock
+}
+
+func (a *Area) SetLock(lock Lock) {
+	a.mu.Lock()
+	a.lock = lock
+	a.mu.Unlock()
+}
+
+func (a *Area) AddInvited(uid int) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if sliceutil.ContainsInt(a.invited, uid) {
+		return false
+	}
+	a.invited = append(a.invited, uid)
+	return true
+}
+
+func (a *Area) RemoveInvited(uid int) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for i, id := range a.invited {
+		if id == uid {
+			a.invited = append(a.invited[:i], a.invited[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+func (a *Area) ClearInvited() {
+	a.mu.Lock()
+	a.invited = []int{}
+	a.mu.Unlock()
+}
+
+func (a *Area) Invited() []int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.invited
+}
+
+func (status Status) String() string {
+	switch status {
+	case StatusIdle:
+		return "IDLE"
+	case StatusPlayers:
+		return "LOOKING-FOR-PLAYERS"
+	case StatusCasing:
+		return "CASING"
+	case StatusRecess:
+		return "RECESS"
+	case StatusRP:
+		return "RP"
+	case StatusGaming:
+		return "GAMING"
+	}
+	return ""
+}
+
+func (lock Lock) String() string {
+	switch lock {
+	case LockFree:
+		return "FREE"
+	case LockSpectatable:
+		return "SPECTATABLE"
+	case LockLocked:
+		return "LOCKED"
+	}
+	return ""
 }

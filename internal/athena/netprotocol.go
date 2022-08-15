@@ -28,6 +28,7 @@ import (
 	"github.com/MangosArentLiterature/Athena/internal/db"
 	"github.com/MangosArentLiterature/Athena/internal/logger"
 	"github.com/MangosArentLiterature/Athena/internal/packet"
+	"github.com/MangosArentLiterature/Athena/internal/permissions"
 	"github.com/MangosArentLiterature/Athena/internal/sliceutil"
 )
 
@@ -125,6 +126,8 @@ func pktReqDone(client *Client, _ *packet.Packet) {
 	client.JoinArea(areas[0])
 	client.SendPacket("DONE")
 	sendCMArup()
+	sendStatusArup()
+	sendLockArup()
 	logger.LogInfof("Client (IPID:%v UID:%v) joined the server", client.Ipid(), client.Uid())
 }
 
@@ -145,7 +148,8 @@ func pktChangeChar(client *Client, p *packet.Packet) {
 func pktIC(client *Client, p *packet.Packet) {
 	// Welcome to the MS packet validation hell.
 
-	if client.CharID() == -1 { // Literally 1984
+	if client.CharID() == -1 || !client.CanSpeak() { // Literally 1984
+		client.SendServerMessage("You are not allowed to speak in this area.")
 		return
 	}
 	// Clients can send differing numbers of arguments depending on their version.
@@ -299,7 +303,11 @@ func pktAM(client *Client, p *packet.Packet) {
 		return
 	}
 
-	if sliceutil.ContainsString(music, p.Body[0]) && client.CharID() != -1 {
+	if sliceutil.ContainsString(music, p.Body[0]) {
+		if client.CharID() == -1 || !client.CanSpeak() {
+			client.SendServerMessage("You are not allowed to change the music in this area.")
+			return
+		}
 		song := p.Body[0]
 		name := characters[client.CharID()]
 		effects := "0"
@@ -320,10 +328,16 @@ func pktAM(client *Client, p *packet.Packet) {
 		if decode(p.Body[0]) == client.Area().Name() {
 			return
 		}
-		for _, area := range areas {
-			if area.Name() == decode(p.Body[0]) {
+		for _, a := range areas {
+			if a.Name() == decode(p.Body[0]) {
+				if a.Lock() == area.LockLocked &&
+					!sliceutil.ContainsInt(a.Invited(), client.Uid()) &&
+					!permissions.HasPermission(client.Perms(), permissions.PermissionField["BYPASS_LOCK"]) {
+					client.SendServerMessage("You are not invited to that area.")
+					return
+				}
 				addToBuffer(client, "AREA", "Left area.", false)
-				client.ChangeArea(area)
+				client.ChangeArea(a)
 				addToBuffer(client, "AREA", "Joined area.", false)
 				return
 			}
@@ -333,6 +347,10 @@ func pktAM(client *Client, p *packet.Packet) {
 
 // Handles HP#%
 func pktHP(client *Client, p *packet.Packet) {
+	if client.CharID() == -1 || !client.CanSpeak() {
+		client.SendServerMessage("You are not allowed to change the penalty bar in this area.")
+		return
+	}
 	bar, err := strconv.Atoi(p.Body[0])
 	if err != nil {
 		return
@@ -359,7 +377,8 @@ func pktHP(client *Client, p *packet.Packet) {
 
 // Handles RT#%
 func pktWTCE(client *Client, p *packet.Packet) {
-	if client.CharID() == -1 {
+	if client.CharID() == -1 || !client.CanSpeak() {
+		client.SendServerMessage("You are not allowed to play WT/CE in this area.")
 		return
 	}
 	writeToArea(client.Area(), "RT", p.Body[0])
@@ -400,6 +419,7 @@ func pktOOC(client *Client, p *packet.Packet) {
 // Handles PE#%
 func pktAddEvi(client *Client, p *packet.Packet) {
 	if !canAlterEvidence(client) {
+		client.SendServerMessage("You are not allowed to alter evidence in this area.")
 		return
 	}
 	client.Area().AddEvidence(strings.Join(p.Body, "&"))
@@ -410,6 +430,7 @@ func pktAddEvi(client *Client, p *packet.Packet) {
 // Handles DE#%
 func pktRemoveEvi(client *Client, p *packet.Packet) {
 	if !canAlterEvidence(client) {
+		client.SendServerMessage("You are not allowed to alter evidence in this area.")
 		return
 	}
 	id, err := strconv.Atoi(p.Body[0])
@@ -424,6 +445,7 @@ func pktRemoveEvi(client *Client, p *packet.Packet) {
 // Handles EE#%
 func pktEditEvi(client *Client, p *packet.Packet) {
 	if !canAlterEvidence(client) {
+		client.SendServerMessage("You are not allowed to alter evidence in this area.")
 		return
 	}
 	id, err := strconv.Atoi(p.Body[0])
@@ -475,6 +497,7 @@ func pktCaseAnn(client *Client, p *packet.Packet) {
 	// Partially because of my own stupidity, and partially because this is the worst packet in AO2.
 
 	if client.CharID() == -1 || !client.HasCMPermission() {
+		client.SendServerMessage("You are not allowed to send case alerts in this area.")
 		return
 	}
 	newPacket := fmt.Sprintf("CASEA#CASE ANNOUNCEMENT: %v in %v needs players for %v#%v#1#%%",
@@ -512,7 +535,7 @@ func encode(s string) string {
 
 // canAlterEvidence is a helper function that returns if a client can alter evidence in their current area.
 func canAlterEvidence(client *Client) bool {
-	if client.CharID() == -1 {
+	if client.CharID() == -1 || !client.CanSpeak() {
 		return false
 	}
 	switch client.Area().EvidenceMode() {
