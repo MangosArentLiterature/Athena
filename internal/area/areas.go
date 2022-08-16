@@ -28,7 +28,7 @@ type Status int
 type Lock int
 
 const (
-	EviNone EvidenceMode = iota
+	EviMods EvidenceMode = iota
 	EviAny
 	EviCMs
 )
@@ -48,6 +48,7 @@ const (
 
 type Area struct {
 	data     AreaData
+	defaults defaults
 	mu       sync.Mutex
 	taken    []bool
 	players  int
@@ -70,15 +71,36 @@ type AreaData struct {
 	Force_noint   bool   `toml:"force_nointerrupt"`
 	Bg            string `toml:"background"`
 	Allow_cms     bool   `toml:"allow_cms"`
-	// lock_bg       bool         `toml:"lock_bg"`
-	// force_bglist  bool         `toml:"enforce_bglist"`
-	// lock_music    bool         `toml:"restrict_music"`
+	Force_bglist  bool   `toml:"force_bglist"`
+	Lock_bg       bool   `toml:"lock_bg"`
+	Lock_music    bool   `toml:"lock_music"`
+}
+
+type defaults struct {
+	evi_mode      EvidenceMode
+	allow_iniswap bool
+	force_noint   bool
+	bg            string
+	allow_cms     bool
+	force_bglist  bool
+	lock_bg       bool
+	lock_music    bool
 }
 
 // Returns a new area
 func NewArea(data AreaData, charlen int, bufsize int, evi_mode EvidenceMode) *Area {
 	return &Area{
-		data:     data,
+		data: data,
+		defaults: defaults{
+			evi_mode:      evi_mode,
+			allow_iniswap: data.Allow_iniswap,
+			force_noint:   data.Force_noint,
+			bg:            data.Bg,
+			allow_cms:     data.Allow_cms,
+			force_bglist:  data.Force_bglist,
+			lock_bg:       data.Lock_bg,
+			lock_music:    data.Lock_music,
+		},
 		taken:    make([]bool, charlen),
 		defhp:    10,
 		prohp:    10,
@@ -224,6 +246,16 @@ func (a *Area) EditEvidence(id int, evi string) {
 	a.mu.Unlock()
 }
 
+func (a *Area) SwapEvidence(x int, y int) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.evidence) < x+1 || len(a.evidence) < y+1 {
+		return false
+	}
+	a.evidence[x], a.evidence[y] = a.evidence[y], a.evidence[x]
+	return true
+}
+
 // UpdateBuffer adds a new line to the area's log buffer.
 func (a *Area) UpdateBuffer(s string) {
 	a.mu.Lock()
@@ -289,6 +321,12 @@ func (a *Area) EvidenceMode() EvidenceMode {
 	return a.evi_mode
 }
 
+func (a *Area) SetEvidenceMode(mode EvidenceMode) {
+	a.mu.Lock()
+	a.evi_mode = mode
+	a.mu.Unlock()
+}
+
 // IniswapAllowed returns whether iniswapping is allowed in the area.
 func (a *Area) IniswapAllowed() bool {
 	a.mu.Lock()
@@ -296,11 +334,23 @@ func (a *Area) IniswapAllowed() bool {
 	return a.data.Allow_iniswap
 }
 
+func (a *Area) SetIniswapAllowed(b bool) {
+	a.mu.Lock()
+	a.data.Allow_iniswap = b
+	a.mu.Unlock()
+}
+
 // NoInterrupt returns whether preanims must not interrupt in the area.
 func (a *Area) NoInterrupt() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.data.Force_noint
+}
+
+func (a *Area) SetNoInterrupt(b bool) {
+	a.mu.Lock()
+	a.data.Force_noint = b
+	a.mu.Unlock()
 }
 
 // LastSpeaker returns the character of the the last speaker.
@@ -346,6 +396,12 @@ func (a *Area) CMsAllowed() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.data.Allow_cms
+}
+
+func (a *Area) SetCMsAllowed(b bool) {
+	a.mu.Lock()
+	a.data.Allow_cms = b
+	a.mu.Unlock()
 }
 
 func (a *Area) Status() Status {
@@ -404,6 +460,63 @@ func (a *Area) Invited() []int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.invited
+}
+
+func (a *Area) Reset() {
+	a.mu.Lock()
+	a.evidence = []string{}
+	a.invited = []int{}
+	a.status = StatusIdle
+	a.lock = LockFree
+	a.cms = []int{}
+	a.last_msg = -1
+	a.defhp = 10
+	a.prohp = 10
+	a.evi_mode = a.defaults.evi_mode
+	a.data.Allow_cms = a.defaults.allow_cms
+	a.data.Allow_iniswap = a.defaults.allow_iniswap
+	a.data.Force_noint = a.defaults.force_noint
+	a.data.Bg = a.defaults.bg
+	a.data.Force_bglist = a.defaults.force_bglist
+	a.data.Lock_bg = a.defaults.lock_bg
+	a.data.Lock_music = a.defaults.lock_music
+	a.mu.Unlock()
+}
+
+func (a *Area) ForceBGList() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.data.Force_bglist
+}
+
+func (a *Area) SetForceBGList(b bool) {
+	a.mu.Lock()
+	a.data.Force_bglist = b
+	a.mu.Unlock()
+}
+
+func (a *Area) LockBG() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.data.Lock_bg
+}
+
+func (a *Area) SetLockBG(b bool) {
+	a.mu.Lock()
+	a.data.Lock_bg = b
+	a.mu.Unlock()
+}
+
+func (a *Area) LockMusic() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.data.Lock_music
+}
+
+func (a *Area) SetLockMusic(b bool) {
+	a.mu.Lock()
+	a.data.Lock_music = b
+	a.mu.Unlock()
 }
 
 func (status Status) String() string {

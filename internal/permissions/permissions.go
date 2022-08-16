@@ -31,6 +31,8 @@ var PermissionField = map[string]uint64{
 	"KICK":        1 << 1,
 	"BAN":         1 << 2,
 	"BYPASS_LOCK": 1 << 3,
+	"MOD_EVI":     1 << 4,
+	"MODIFY_AREA": 1 << 5,
 	"ADMIN":       math.MaxInt64,
 }
 

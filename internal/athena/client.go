@@ -145,6 +145,21 @@ func (client *Client) SendPacket(header string, contents ...string) {
 func (client *Client) clientCleanup() {
 	if client.Uid() != -1 {
 		logger.LogInfof("Client (IPID:%v UID:%v) left the server", client.ipid, client.Uid())
+
+		if client.Area().PlayerCount() <= 1 {
+			client.Area().Reset()
+			sendLockArup()
+			sendStatusArup()
+			sendCMArup()
+		} else if client.Area().HasCM(client.Uid()) {
+			client.Area().RemoveCM(client.Uid())
+			sendCMArup()
+		}
+		for _, a := range areas {
+			if a.Lock() != area.LockFree {
+				a.RemoveInvited(client.Uid())
+			}
+		}
 		uids.ReleaseUid(client.Uid())
 		players.RemovePlayer()
 		client.Area().RemoveChar(client.CharID())
@@ -427,13 +442,12 @@ func (client *Client) JoinArea(area *area.Area) {
 
 // ChangeArea changes the client's current area.
 func (client *Client) ChangeArea(a *area.Area) {
-	if client.Area().PlayerCount() <= 1 && client.Area().Lock() != area.LockFree {
-		client.Area().SetLock(area.LockFree)
-		client.Area().ClearInvited()
+	if client.Area().PlayerCount() <= 1 {
+		client.Area().Reset()
 		sendLockArup()
-	}
-
-	if client.Area().HasCM(client.Uid()) {
+		sendStatusArup()
+		sendCMArup()
+	} else if client.Area().HasCM(client.Uid()) {
 		client.Area().RemoveCM(client.Uid())
 		sendCMArup()
 	}
@@ -458,11 +472,43 @@ func (client *Client) HasCMPermission() bool {
 }
 
 func (client *Client) CanSpeak() bool {
-	if client.Area().Lock() != area.LockFree &&
-		!permissions.HasPermission(client.Perms(), permissions.PermissionField["BYPASS_LOCK"]) &&
-		!sliceutil.ContainsInt(client.Area().Invited(), client.Uid()) {
+	switch {
+	case client.CharID() == -1:
 		return false
-	} else {
-		return true
+	case client.Area().Lock() == area.LockSpectatable && !sliceutil.ContainsInt(client.area.Invited(), client.Uid()) &&
+		!permissions.HasPermission(client.Perms(), permissions.PermissionField["BYPASS_LOCK"]):
+		return false
 	}
+	return true
+}
+
+func (client *Client) CanChangeMusic() bool {
+	switch {
+	case client.CharID() == -1:
+		return false
+	case client.Area().LockMusic() && !client.HasCMPermission():
+		return false
+	case client.Area().Lock() == area.LockSpectatable && !sliceutil.ContainsInt(client.area.Invited(), client.Uid()) &&
+		!permissions.HasPermission(client.Perms(), permissions.PermissionField["BYPASS_LOCK"]):
+		return false
+	}
+	return true
+}
+
+// canAlterEvidence is a helper function that returns if a client can alter evidence in their current area.
+func (client *Client) CanAlterEvidence() bool {
+	if client.CharID() == -1 || !client.CanSpeak() {
+		return false
+	}
+	switch client.Area().EvidenceMode() {
+	case area.EviMods:
+		if !permissions.HasPermission(client.Perms(), permissions.PermissionField["MOD_EVI"]) {
+			return false
+		}
+	case area.EviCMs:
+		if !client.HasCMPermission() {
+			return false
+		}
+	}
+	return true
 }

@@ -1,13 +1,39 @@
 [[Area]]
+# Sets the name of the area.
 name = "Lobby"
-evidence_mode = "none"
-allow_iniswap = false
-force_nointerrupt = true
+
+# Sets the area's default background. This must be in the server's background list.
 background = "gs4"
+
+# Sets the area's default evidence mode. Permitted options are "any", "cms", and "mods".
+# "any" allows all users to alter evidence. "cms" only allows area CMs to alter evidence. "mods" only allows moderators to alter evidence.
+evidence_mode = "mods"
+
+# Sets whether iniswapping is allowed in the area.
+allow_iniswap = false
+
+# Sets whether users are allowed to become 'CM' in this area.
+allow_cms = false
+
+# Sets whether non-interrupting preanims are forced in this area.
+force_nointerrupt = true
+
+# Sets whether the server's background list is enforced in this area.
+force_bglist = true
+
+# Sets whether the background in this area cannot be changed.
+lock_bg = true
+
+# Sets whether non-CM users are prevented from playing music in this area.
+lock_music = false
 
 [[Area]]
 name = "Courtroom"
+background = "gs4"
 evidence_mode = "cms"
 allow_iniswap = true
+allow_cms = true
 force_nointerrupt = false
-background = "gs4"
+force_bglist = true
+lock_bg = false
+lock_music = false

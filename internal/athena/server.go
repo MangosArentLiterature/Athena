@@ -98,8 +98,8 @@ func InitServer(conf *settings.Config) error {
 			evi_mode = area.EviAny
 		case "cms":
 			evi_mode = area.EviCMs
-		case "none":
-			evi_mode = area.EviNone
+		case "mods":
+			evi_mode = area.EviMods
 		default:
 			logger.LogWarningf("Area %v has an invalid or undefined evidence mode, defaulting to 'cms'.", a.Name)
 			evi_mode = area.EviCMs

@@ -126,7 +126,7 @@ func WriteAudit(s string) {
 	if err != nil {
 		LogError(err.Error())
 	}
-	_, err = f.WriteString(s + "\n")
+	_, err = f.WriteString(fmt.Sprintf("[%v] %v\n", time.Now().UTC().Format("2006/01/02"), s))
 	if err != nil {
 		LogError(err.Error())
 	}

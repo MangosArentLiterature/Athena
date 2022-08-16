@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,23 +58,35 @@ type cmdMapValue struct {
 }
 
 var commands = map[string]cmdMapValue{
-	"about":    {0, "Usage: /about", "Prints Athena version information.", permissions.PermissionField["NONE"], cmdAbout},
-	"login":    {2, "Usage: /login <username> <password>", "Logs in as moderator.", permissions.PermissionField["NONE"], cmdLogin},
-	"logout":   {0, "Usage: /logout", "Logs out as moderator.", permissions.PermissionField["NONE"], cmdLogout},
-	"mkusr":    {3, "Usage: /mkusr <username> <password> <role>", "Creates a new moderator user.", permissions.PermissionField["ADMIN"], cmdMakeUser},
-	"rmusr":    {1, "Usage: /rmusr <username>", "Removes a moderator user.", permissions.PermissionField["ADMIN"], cmdRemoveUser},
-	"setrole":  {2, "Usage: /setrole <username> <role>", "Updates a moderator user's role.", permissions.PermissionField["ADMIN"], cmdChangeRole},
-	"kick":     {3, "Usage: /kick -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... <reason>", "Kicks user(s) from the server.", permissions.PermissionField["KICK"], cmdKick},
-	"kickarea": {1, "Usage: /kickarea <uid1>,<uid2>...", "Kicks user(s) from the area.", permissions.PermissionField["CM"], cmdAreaKick},
-	"ban":      {3, "Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>", "Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
-	"bg":       {1, "Usage: /bg <background>", "Sets the area's background.", permissions.PermissionField["CM"], cmdBg},
-	"cm":       {0, "Usage: /cm [uid1],[uid2]...", "Adds CM(s) to the area.", permissions.PermissionField["NONE"], cmdCM},
-	"uncm":     {0, "Usage: /uncm [uid1],[uid2]...", "Removes CM(s) from the area.", permissions.PermissionField["CM"], cmdUnCM},
-	"status":   {1, "Usage: /status <status>", "Sets the area's status.", permissions.PermissionField["CM"], cmdStatus},
-	"lock":     {0, "Usage: /lock [-s]", "Locks the area or sets it to spectatable.", permissions.PermissionField["CM"], cmdLock},
-	"unlock":   {0, "Usage: /unlock", "Unlocks the area.", permissions.PermissionField["CM"], cmdUnlock},
-	"invite":   {1, "Usage: /invite <uid1>,<uid2>...", "Invites user(s) to the area.", permissions.PermissionField["CM"], cmdInvite},
-	"uninvite": {1, "Usage: /uninvite <uid1>,<uid2>...", "Uninvites user(s) to the area.", permissions.PermissionField["CM"], cmdUninvite},
+	//admin commands
+	"mkusr":   {3, "Usage: /mkusr <username> <password> <role>", "Creates a new moderator user.", permissions.PermissionField["ADMIN"], cmdMakeUser},
+	"rmusr":   {1, "Usage: /rmusr <username>", "Removes a moderator user.", permissions.PermissionField["ADMIN"], cmdRemoveUser},
+	"setrole": {2, "Usage: /setrole <username> <role>", "Updates a moderator user's role.", permissions.PermissionField["ADMIN"], cmdChangeRole},
+	//general commands
+	"about": {0, "Usage: /about", "Prints Athena version information.", permissions.PermissionField["NONE"], cmdAbout},
+	//area commands
+	"bg":           {1, "Usage: /bg <background>", "Sets the area's background.", permissions.PermissionField["CM"], cmdBg},
+	"status":       {1, "Usage: /status <status>", "Sets the area's status.", permissions.PermissionField["CM"], cmdStatus},
+	"cm":           {0, "Usage: /cm [uid1],[uid2]...", "Adds CM(s) to the area.", permissions.PermissionField["NONE"], cmdCM},
+	"uncm":         {0, "Usage: /uncm [uid1],[uid2]...", "Removes CM(s) from the area.", permissions.PermissionField["CM"], cmdUnCM},
+	"lock":         {0, "Usage: /lock [-s]", "Locks the area or sets it to spectatable.", permissions.PermissionField["CM"], cmdLock},
+	"unlock":       {0, "Usage: /unlock", "Unlocks the area.", permissions.PermissionField["CM"], cmdUnlock},
+	"invite":       {1, "Usage: /invite <uid1>,<uid2>...", "Invites user(s) to the area.", permissions.PermissionField["CM"], cmdInvite},
+	"uninvite":     {1, "Usage: /uninvite <uid1>,<uid2>...", "Uninvites user(s) to the area.", permissions.PermissionField["CM"], cmdUninvite},
+	"evimode":      {1, "Usage: /evimode <mode>", "Sets the area's evidence mode.", permissions.PermissionField["CM"], cmdSetEviMod},
+	"kickarea":     {1, "Usage: /kickarea <uid1>,<uid2>...", "Kicks user(s) from the area.", permissions.PermissionField["CM"], cmdAreaKick},
+	"swapevi":      {2, "Usage: /swapevi <id1> <id2>", "Swaps the posistion of two pieces of evidence.", permissions.PermissionField["NONE"], cmdSwapEvi},
+	"nointpres":    {1, "Usage: /nointpres <true|false>", "Toggles non-interrupting preanims in the area.", permissions.PermissionField["MODIFY_AREA"], cmdNoIntPres},
+	"allowiniswap": {1, "Usage: /allowiniswap <true|false>", "Toggles iniswapping in the area.", permissions.PermissionField["MODIFY_AREA"], cmdAllowIniswap},
+	"forcebglist":  {1, "Usage: /forcebglist <true|false>", "Toggles enforcing the server BG list in the area.", permissions.PermissionField["MODIFY_AREA"], cmdForceBGList},
+	"allowcms":     {1, "Usage: /allowcms <true|false>", "Toggles allowing CMs in the area.", permissions.PermissionField["MODIFY_AREA"], cmdAllowCMs},
+	"lockbg":       {1, "Usage: /lockbg <true|false>", "Toggles locking the area's BG", permissions.PermissionField["MODIFY_AREA"], cmdLockBG},
+	"lock_music":   {1, "Usage: /lockmusic <true|false>", "Toggles making music in the area CM only.", permissions.PermissionField["CM"], cmdLockMusic},
+	//mod commands
+	"login":  {2, "Usage: /login <username> <password>", "Logs in as moderator.", permissions.PermissionField["NONE"], cmdLogin},
+	"logout": {0, "Usage: /logout", "Logs out as moderator.", permissions.PermissionField["NONE"], cmdLogout},
+	"kick":   {3, "Usage: /kick -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... <reason>", "Kicks user(s) from the server.", permissions.PermissionField["KICK"], cmdKick},
+	"ban":    {3, "Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>", "Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
 }
 
 // ParseCommand calls the appropriate function for a given command.
@@ -337,7 +350,12 @@ func cmdAreaKick(client *Client, args []string, usage string) {
 }
 
 func cmdBg(client *Client, args []string, usage string) {
-	if !sliceutil.ContainsString(backgrounds, args[0]) {
+	if client.Area().LockBG() && !permissions.HasPermission(client.Perms(), permissions.PermissionField["MODIFY_AREA"]) {
+		client.SendServerMessage("You do not have permission to change the background in this area.")
+		return
+	}
+
+	if client.Area().ForceBGList() && !sliceutil.ContainsString(backgrounds, args[0]) {
 		client.SendServerMessage("Invalid background.")
 		return
 	}
@@ -510,4 +528,143 @@ func cmdUninvite(client *Client, args []string, _ string) {
 		}
 	}
 	client.SendServerMessage(fmt.Sprintf("Uninvited %v users.", count))
+}
+
+func cmdSwapEvi(client *Client, args []string, _ string) {
+	if !client.CanAlterEvidence() {
+		client.SendServerMessage("You are not allowed to alter evidence in this area.")
+		return
+	}
+	evi1, err := strconv.Atoi(args[0])
+	if err != nil {
+		return
+	}
+	evi2, err := strconv.Atoi(args[1])
+	if err != nil {
+		return
+	}
+	if client.Area().SwapEvidence(evi1, evi2) {
+		client.SendServerMessage("Evidence swapped.")
+		writeToArea(client.Area(), "LE", client.Area().Evidence()...)
+	} else {
+		client.SendServerMessage("Invalid arguments.")
+	}
+}
+
+func cmdSetEviMod(client *Client, args []string, _ string) {
+	if !client.CanAlterEvidence() {
+		client.SendServerMessage("You are not allowed to change the evidence mode.")
+		return
+	}
+	switch args[0] {
+	case "mods":
+		if !permissions.HasPermission(client.Perms(), permissions.PermissionField["MOD_EVI"]) {
+			client.SendServerMessage("You do not have permission for this evidence mode.")
+			return
+		}
+		client.Area().SetEvidenceMode(area.EviMods)
+	case "cms":
+		client.Area().SetEvidenceMode(area.EviCMs)
+	case "any":
+		client.Area().SetEvidenceMode(area.EviAny)
+	default:
+		client.SendServerMessage("Invalid evidence mode.")
+		return
+	}
+	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v set the evidence mode to %v.", client.OOCName(), args[0]))
+}
+
+func cmdNoIntPres(client *Client, args []string, _ string) {
+	var result string
+	switch args[0] {
+	case "true":
+		client.Area().SetNoInterrupt(true)
+		result = "enabled"
+	case "false":
+		client.Area().SetNoInterrupt(false)
+		result = "disabled"
+	default:
+		client.SendServerMessage("Invalid command.")
+		return
+	}
+	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v has %v non-interrupting preanims in this area.", client.OOCName(), result))
+}
+
+func cmdAllowIniswap(client *Client, args []string, _ string) {
+	var result string
+	switch args[0] {
+	case "true":
+		client.Area().SetIniswapAllowed(true)
+		result = "enabled"
+	case "false":
+		client.Area().SetIniswapAllowed(false)
+		result = "disabled"
+	default:
+		client.SendServerMessage("Invalid command.")
+		return
+	}
+	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v has %v iniswapping in this area.", client.OOCName(), result))
+}
+
+func cmdForceBGList(client *Client, args []string, _ string) {
+	var result string
+	switch args[0] {
+	case "true":
+		client.Area().SetForceBGList(true)
+		result = "enforced"
+	case "false":
+		client.Area().SetForceBGList(false)
+		result = "unenforced"
+	default:
+		client.SendServerMessage("Invalid command.")
+		return
+	}
+	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v has %v the BG list in this area.", client.OOCName(), result))
+}
+
+func cmdLockBG(client *Client, args []string, _ string) {
+	var result string
+	switch args[0] {
+	case "true":
+		client.Area().SetLockBG(true)
+		result = "locked"
+	case "false":
+		client.Area().SetLockBG(false)
+		result = "unlocked"
+	default:
+		client.SendServerMessage("Invalid commmand.")
+		return
+	}
+	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v has %v the background in this area.", client.OOCName(), result))
+}
+
+func cmdLockMusic(client *Client, args []string, _ string) {
+	var result string
+	switch args[0] {
+	case "true":
+		client.Area().SetLockMusic(true)
+		result = "enabled"
+	case "false":
+		client.Area().SetLockMusic(false)
+		result = "disabled"
+	default:
+		client.SendServerMessage("Invalid command.")
+		return
+	}
+	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v has %v CM-only music in this area.", client.OOCName(), result))
+}
+
+func cmdAllowCMs(client *Client, args []string, _ string) {
+	var result string
+	switch args[0] {
+	case "true":
+		client.Area().SetCMsAllowed(true)
+		result = "allowed"
+	case "false":
+		client.Area().SetCMsAllowed(false)
+		result = "disallowed"
+	default:
+		client.SendServerMessage("Invalid command.")
+	}
+	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v has %v CMs in this area.", client.OOCName(), result))
 }

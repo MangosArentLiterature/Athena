@@ -304,7 +304,7 @@ func pktAM(client *Client, p *packet.Packet) {
 	}
 
 	if sliceutil.ContainsString(music, p.Body[0]) {
-		if client.CharID() == -1 || !client.CanSpeak() {
+		if !client.CanChangeMusic() {
 			client.SendServerMessage("You are not allowed to change the music in this area.")
 			return
 		}
@@ -418,7 +418,7 @@ func pktOOC(client *Client, p *packet.Packet) {
 
 // Handles PE#%
 func pktAddEvi(client *Client, p *packet.Packet) {
-	if !canAlterEvidence(client) {
+	if !client.CanAlterEvidence() {
 		client.SendServerMessage("You are not allowed to alter evidence in this area.")
 		return
 	}
@@ -429,7 +429,7 @@ func pktAddEvi(client *Client, p *packet.Packet) {
 
 // Handles DE#%
 func pktRemoveEvi(client *Client, p *packet.Packet) {
-	if !canAlterEvidence(client) {
+	if !client.CanAlterEvidence() {
 		client.SendServerMessage("You are not allowed to alter evidence in this area.")
 		return
 	}
@@ -444,7 +444,7 @@ func pktRemoveEvi(client *Client, p *packet.Packet) {
 
 // Handles EE#%
 func pktEditEvi(client *Client, p *packet.Packet) {
-	if !canAlterEvidence(client) {
+	if !client.CanAlterEvidence() {
 		client.SendServerMessage("You are not allowed to alter evidence in this area.")
 		return
 	}
@@ -531,22 +531,4 @@ func decode(s string) string {
 // encode returns a string encoded AO2 string.
 func encode(s string) string {
 	return strings.NewReplacer("%", "<percent>", "#", "<num>", "$", "<dollar>", "&", "<and>").Replace(s)
-}
-
-// canAlterEvidence is a helper function that returns if a client can alter evidence in their current area.
-func canAlterEvidence(client *Client) bool {
-	if client.CharID() == -1 || !client.CanSpeak() {
-		return false
-	}
-	switch client.Area().EvidenceMode() {
-	case area.EviNone:
-		if !client.Authenticated() {
-			return false
-		}
-	case area.EviCMs:
-		if !client.Authenticated() || !client.Area().HasCM(client.Uid()) {
-			return false
-		}
-	}
-	return true
 }
