@@ -49,6 +49,7 @@ type ServerConfig struct {
 	LogDir     string `toml:"log_directory"`
 	EnableWS   bool   `toml:"enable_webao"`
 	WSPort     int    `toml:"webao_port"`
+	MCLimit    int    `toml:"multiclient_limit"`
 }
 type MSConfig struct {
 	Advertise bool   `toml:"advertise"`
@@ -71,6 +72,7 @@ func defaultConfig() *Config {
 			LogDir:     "logs",
 			EnableWS:   false,
 			WSPort:     27017,
+			MCLimit:    16,
 		},
 		MSConfig{
 			Advertise: false,

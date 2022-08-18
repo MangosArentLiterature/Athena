@@ -41,6 +41,10 @@ log_level = "info"
 # This directory will be used for storing report files and the server audit log.
 log_directory = "logs"
 
+# Sets the number of client connections that can be made from the same IP, also known as "multiclienting".
+# Set to 0 to disable multiclient limiting.
+multiclient_limit = 16
+
 [MasterServer]
 
 # Whether or not to advertise your server on the master server, which will make it discoverable by players.

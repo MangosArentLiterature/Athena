@@ -77,6 +77,19 @@ func (client *Client) HandleClient() {
 	defer client.clientCleanup()
 
 	client.CheckBanned(db.IPID)
+
+	var mc int
+	for c := range clients.GetAllClients() {
+		if c.Ipid() == client.Ipid() {
+			mc++
+		}
+	}
+	if mc >= config.MCLimit && config.MCLimit != 0 {
+		client.SendPacket("BD", "You have reached the server's multiclient limit.")
+		client.conn.Close()
+		return
+	}
+
 	logger.LogDebugf("%v connected", client.ipid)
 	clients.AddClient(client)
 
