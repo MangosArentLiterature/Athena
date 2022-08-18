@@ -5,6 +5,12 @@ addr = ""
 # The port to listen for connections on.
 port = 27016
 
+# Whether to listen for websocket (WebAO) connections.
+enable_webao = false
+
+# The port to listen for websocket (WebAO) connections on.
+webao_port = 27017
+
 # The name of your server. This is used both on the server list, and within the server.
 name = "Unnamed Server"
 

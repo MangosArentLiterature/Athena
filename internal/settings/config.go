@@ -47,6 +47,8 @@ type ServerConfig struct {
 	BanLen     string `toml:"default_ban_duration"`
 	LogLevel   string `toml:"log_level"`
 	LogDir     string `toml:"log_directory"`
+	EnableWS   bool   `toml:"enable_webao"`
+	WSPort     int    `toml:"webao_port"`
 }
 type MSConfig struct {
 	Advertise bool   `toml:"advertise"`
@@ -67,6 +69,8 @@ func defaultConfig() *Config {
 			BanLen:     "3d",
 			LogLevel:   "info",
 			LogDir:     "logs",
+			EnableWS:   false,
+			WSPort:     27017,
 		},
 		MSConfig{
 			Advertise: false,

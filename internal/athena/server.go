@@ -17,8 +17,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package athena
 
 import (
+	"context"
+	"crypto/md5"
+	"encoding/base64"
 	"fmt"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +37,7 @@ import (
 	"github.com/MangosArentLiterature/Athena/internal/sliceutil"
 	"github.com/MangosArentLiterature/Athena/internal/uidmanager"
 	"github.com/xhit/go-str2duration/v2"
+	"nhooyr.io/websocket"
 )
 
 const version = ""
@@ -117,6 +122,9 @@ func InitServer(conf *settings.Config) error {
 			Players: players.GetPlayerCount(),
 			Name:    config.Name,
 			Desc:    config.Desc}
+		if config.EnableWS {
+			advert.WSPort = config.WSPort
+		}
 		go ms.Advertise(config.MSAddr, advert, updatePlayers, advertDone)
 	}
 	return nil
@@ -130,19 +138,51 @@ func ListenTCP() {
 		FatalError <- err
 		return
 	}
+	logger.LogDebug("TCP listener started.")
 
 	defer listener.Close()
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			logger.LogWarning(err.Error())
+			logger.LogError(err.Error())
 		}
+		ipid := getIpid(conn.RemoteAddr().String())
 		if logger.DebugNetwork {
-			logger.LogDebugf("Connection recieved from %v", conn.RemoteAddr())
+			logger.LogDebugf("Connection recieved from %v", ipid)
 		}
-		client := NewClient(conn)
+		client := NewClient(conn, ipid)
 		go client.HandleClient()
 	}
+}
+
+func ListenWS() {
+	listener, err := net.Listen("tcp", config.Addr+":"+strconv.Itoa(config.WSPort))
+	if err != nil {
+		FatalError <- err
+		return
+	}
+	defer listener.Close()
+	logger.LogDebug("WS listener started.")
+	s := &http.Server{}
+	http.HandleFunc("/", HandleWS)
+	err = s.Serve(listener)
+	if err != http.ErrServerClosed {
+		FatalError <- err
+	}
+}
+
+func HandleWS(w http.ResponseWriter, r *http.Request) {
+	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: []string{"web.aceattorneyonline.com"}})
+	if err != nil {
+		logger.LogError(err.Error())
+		return
+	}
+	ipid := getIpid(r.RemoteAddr)
+	if logger.DebugNetwork {
+		logger.LogDebugf("Connection recieved from %v", ipid)
+	}
+	client := NewClient(websocket.NetConn(context.TODO(), c, websocket.MessageText), ipid)
+	go client.HandleClient()
 }
 
 // writeToAll sends a message to all connected clients.
@@ -265,4 +305,13 @@ func CleanupServer() {
 		client.conn.Close()
 	}
 	db.Close()
+}
+
+func getIpid(s string) string {
+	// For privacy and ease of use, AO servers traditionally use a hashed version of a client's IP address to identify a client.
+	// Athena uses the MD5 hash of the IP address, encoded in base64.
+	addr := strings.Split(s, ":")
+	hash := md5.Sum([]byte(strings.Join(addr[:len(addr)-1], ":")))
+	ipid := base64.StdEncoding.EncodeToString(hash[:])
+	return ipid[:len(ipid)-2] // Removes the trailing padding.
 }

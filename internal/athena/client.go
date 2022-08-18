@@ -19,8 +19,6 @@ package athena
 import (
 	"bufio"
 	"bytes"
-	"crypto/md5"
-	"encoding/base64"
 	"fmt"
 	"net"
 	"strconv"
@@ -64,25 +62,19 @@ type Client struct {
 }
 
 // NewClient returns a new client.
-func NewClient(conn net.Conn) *Client {
+func NewClient(conn net.Conn, ipid string) *Client {
 	return &Client{
 		conn: conn,
 		uid:  -1,
 		char: -1,
 		pair: ClientPairInfo{wanted_id: -1},
+		ipid: ipid,
 	}
 }
 
 // handleClient handles a client connection to the server.
 func (client *Client) HandleClient() {
 	defer client.clientCleanup()
-
-	// For privacy and ease of use, AO servers traditionally use a hashed version of a client's IP address to identify a client.
-	// Athena uses the MD5 hash of the IP address, encoded in base64.
-	addr := strings.Split(client.conn.RemoteAddr().String(), ":")
-	hash := md5.Sum([]byte(strings.Join(addr[:len(addr)-1], ":")))
-	client.ipid = base64.StdEncoding.EncodeToString(hash[:])
-	client.ipid = client.ipid[:len(client.ipid)-2] // Removes the trailing padding.
 
 	client.CheckBanned(db.IPID)
 	logger.LogDebugf("%v connected", client.ipid)
@@ -162,6 +154,7 @@ func (client *Client) clientCleanup() {
 		}
 		uids.ReleaseUid(client.Uid())
 		players.RemovePlayer()
+		updatePlayers <- players.GetPlayerCount()
 		client.Area().RemoveChar(client.CharID())
 		sendPlayerArup()
 	}

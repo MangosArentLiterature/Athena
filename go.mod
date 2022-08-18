@@ -7,11 +7,13 @@ require (
 	github.com/xhit/go-str2duration/v2 v2.0.0
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
 	modernc.org/sqlite v1.18.0
+	nhooyr.io/websocket v1.8.7
 )
 
 require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
+	github.com/klauspost/compress v1.10.3 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect

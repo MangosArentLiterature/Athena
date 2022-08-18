@@ -27,6 +27,7 @@ import (
 
 type Advertisement struct {
 	Port    int    `json:"port"`
+	WSPort  int    `json:"ws_port,omitempty"`
 	Players int    `json:"players"`
 	Name    string `json:"name"`
 	Desc    string `json:"description"`
@@ -43,6 +44,7 @@ func Advertise(msUrl string, advert Advertisement, updatePlayers chan (int), don
 		case advert.Players = <-updatePlayers:
 			postServer(msUrl, advert)
 		case <-done:
+			ticker.Stop()
 			return
 		}
 	}

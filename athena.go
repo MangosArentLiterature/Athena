@@ -69,6 +69,9 @@ func main() {
 	}
 	logger.LogInfo("Started server.")
 	go athena.ListenTCP()
+	if config.EnableWS {
+		go athena.ListenWS()
+	}
 	go athena.ListenInput()
 	stop := make(chan (os.Signal), 2)
 	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
