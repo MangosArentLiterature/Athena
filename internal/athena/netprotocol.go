@@ -89,6 +89,10 @@ func pktId(client *Client, p *packet.Packet) {
 	client.SendPacket("FL", "noencryption", "yellowtext", "prezoom", "flipping", "customobjections",
 		"fastloading", "deskmod", "evidence", "cccc_ic_support", "arup", "casing_alerts",
 		"looping_sfx", "additive", "effects", "y_offset", "expanded_desk_mods", "auth_packet") // god this is cursed
+
+	if config.AssetURL != "" {
+		client.SendPacket("ASS", config.AssetURL)
+	}
 }
 
 // Handles askchaa#%

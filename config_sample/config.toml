@@ -45,6 +45,10 @@ log_directory = "logs"
 # Set to 0 to disable multiclient limiting.
 multiclient_limit = 16
 
+# Sets the URL for the server's WebAO assets.
+# If this is blank, vanilla assets will be used.
+asset_url = ""
+
 [MasterServer]
 
 # Whether or not to advertise your server on the master server, which will make it discoverable by players.

@@ -50,6 +50,7 @@ type ServerConfig struct {
 	EnableWS   bool   `toml:"enable_webao"`
 	WSPort     int    `toml:"webao_port"`
 	MCLimit    int    `toml:"multiclient_limit"`
+	AssetURL   string `toml:"asset_url"`
 }
 type MSConfig struct {
 	Advertise bool   `toml:"advertise"`
