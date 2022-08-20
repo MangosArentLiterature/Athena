@@ -49,6 +49,12 @@ multiclient_limit = 16
 # If this is blank, vanilla assets will be used.
 asset_url = ""
 
+# Sets the URL for the server's Discord webhook.
+# If this is blank, the discord webhook will be disabled.
+# To setup the webhook, follow the instructions here (https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks)
+# and set this to the URL of your webhook.
+webhook_url = ""
+
 [MasterServer]
 
 # Whether or not to advertise your server on the master server, which will make it discoverable by players.

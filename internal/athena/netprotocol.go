@@ -30,6 +30,7 @@ import (
 	"github.com/MangosArentLiterature/Athena/internal/packet"
 	"github.com/MangosArentLiterature/Athena/internal/permissions"
 	"github.com/MangosArentLiterature/Athena/internal/sliceutil"
+	"github.com/MangosArentLiterature/Athena/internal/webhook"
 )
 
 // Documentation for AO2's network protocol can be found here:
@@ -88,7 +89,7 @@ func pktId(client *Client, p *packet.Packet) {
 	client.SendPacket("PN", strconv.Itoa(players.GetPlayerCount()), strconv.Itoa(config.MaxPlayers), encode(config.Desc))
 	client.SendPacket("FL", "noencryption", "yellowtext", "prezoom", "flipping", "customobjections",
 		"fastloading", "deskmod", "evidence", "cccc_ic_support", "arup", "casing_alerts",
-		"looping_sfx", "additive", "effects", "y_offset", "expanded_desk_mods", "auth_packet") // god this is cursed
+		"modcall_reason", "looping_sfx", "additive", "effects", "y_offset", "expanded_desk_mods", "auth_packet") // god this is cursed
 
 	if config.AssetURL != "" {
 		client.SendPacket("ASS", config.AssetURL)
@@ -473,13 +474,19 @@ func pktModcall(client *Client, p *packet.Packet) {
 	if len(p.Body) >= 1 {
 		s = p.Body[0]
 	}
+	addToBuffer(client, "MOD", fmt.Sprintf("Called moderator for reason: %v", s), false)
 	for c := range clients.GetAllClients() {
 		if c.Authenticated() {
 			c.SendPacket("ZZ", fmt.Sprintf("[%v] %v (%v): %v", client.Area().Name(), client.CurrentCharacter(), client.Ipid(), s))
 		}
 	}
+	if enableDiscord {
+		err := webhook.PostModcall(client.CurrentCharacter(), client.Area().Name(), s)
+		if err != nil {
+			logger.LogError(err.Error())
+		}
+	}
 	logger.WriteReport(client.Area().Name(), client.Area().Buffer())
-	addToBuffer(client, "MOD", fmt.Sprintf("Called moderator for reason: %v", s), false)
 }
 
 // Handles SETCASE#%

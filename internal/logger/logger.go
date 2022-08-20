@@ -22,6 +22,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/MangosArentLiterature/Athena/internal/webhook"
 )
 
 type LogLevel int
@@ -112,7 +114,13 @@ func LogFatalf(format string, v ...interface{}) {
 // WriteReport flushes a given area buffer to a report file.
 func WriteReport(name string, buffer []string) {
 	fileLock.Lock()
-	err := os.WriteFile(fmt.Sprintf("%v/report-%v-%v.log", LogPath, time.Now().UTC().Format("2006-01-02T150405Z"), name), []byte(strings.Join(buffer, "\n")), 0755)
+	fname := fmt.Sprintf("report-%v-%v.log", time.Now().UTC().Format("2006-01-02T150405Z"), name)
+	fcontents := []byte(strings.Join(buffer, "\n"))
+	err := webhook.PostReport(fname, string(fcontents))
+	if err != nil {
+		LogError(err.Error())
+	}
+	err = os.WriteFile(LogPath+"/"+fname, fcontents, 0755)
 	if err != nil {
 		LogError(err.Error())
 	}

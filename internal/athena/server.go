@@ -36,6 +36,8 @@ import (
 	"github.com/MangosArentLiterature/Athena/internal/settings"
 	"github.com/MangosArentLiterature/Athena/internal/sliceutil"
 	"github.com/MangosArentLiterature/Athena/internal/uidmanager"
+	"github.com/MangosArentLiterature/Athena/internal/webhook"
+	"github.com/ecnepsnai/discord"
 	"github.com/xhit/go-str2duration/v2"
 	"nhooyr.io/websocket"
 )
@@ -50,6 +52,7 @@ var (
 	roles                          []permissions.Role
 	uids                           uidmanager.UidManager
 	players                        playercount.PlayerCount
+	enableDiscord                  bool
 	clients                        ClientList = ClientList{list: make(map[*Client]struct{})}
 	updatePlayers                             = make(chan int)
 	advertDone                                = make(chan struct{})
@@ -93,6 +96,11 @@ func InitServer(conf *settings.Config) error {
 	_, err = str2duration.ParseDuration(conf.BanLen)
 	if err != nil {
 		return fmt.Errorf("failed to parse default_ban_duration: %v", err.Error())
+	}
+	if config.WebhookURL != "" {
+		enableDiscord = true
+		webhook.ServerName = config.Name
+		discord.WebhookURL = config.WebhookURL
 	}
 
 	for _, a := range areaData {
@@ -207,7 +215,7 @@ func addToBuffer(client *Client, action string, message string, audit bool) {
 	if client.Authenticated() {
 		auth = " (*)"
 	}
-	s := fmt.Sprintf("[%v] [%v] %v%v (%v) %v: %v", time.Now().Format("15:04:05"), action,
+	s := fmt.Sprintf("[%v] [%v] %v%v (%v) %v: %v", time.Now().UTC().Format("15:04:05"), action,
 		client.CurrentCharacter(), auth, client.Ipid(), client.OOCName(), message)
 	client.Area().UpdateBuffer(s)
 	if audit {

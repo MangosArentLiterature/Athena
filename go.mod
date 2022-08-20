@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	github.com/BurntSushi/toml v1.2.0
+	github.com/ecnepsnai/discord v1.2.1
 	github.com/xhit/go-str2duration/v2 v2.0.0
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
 	modernc.org/sqlite v1.18.0

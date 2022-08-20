@@ -51,6 +51,7 @@ type ServerConfig struct {
 	WSPort     int    `toml:"webao_port"`
 	MCLimit    int    `toml:"multiclient_limit"`
 	AssetURL   string `toml:"asset_url"`
+	WebhookURL string `toml:"webhook_url"`
 }
 type MSConfig struct {
 	Advertise bool   `toml:"advertise"`
