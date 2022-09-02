@@ -447,7 +447,13 @@ func (client *Client) JoinArea(area *area.Area) {
 }
 
 // ChangeArea changes the client's current area.
-func (client *Client) ChangeArea(a *area.Area) {
+func (client *Client) ChangeArea(a *area.Area) bool {
+	if a.Lock() == area.LockLocked &&
+		!sliceutil.ContainsInt(a.Invited(), client.Uid()) &&
+		!permissions.HasPermission(client.Perms(), permissions.PermissionField["BYPASS_LOCK"]) {
+		return false
+	}
+	addToBuffer(client, "AREA", "Left area.", false)
 	if client.Area().PlayerCount() <= 1 {
 		client.Area().Reset()
 		sendLockArup()
@@ -467,6 +473,8 @@ func (client *Client) ChangeArea(a *area.Area) {
 	} else {
 		writeToArea(a, "CharsCheck", a.Taken()...)
 	}
+	addToBuffer(client, "AREA", "Joined area.", false)
+	return true
 }
 
 func (client *Client) HasCMPermission() bool {
@@ -517,4 +525,12 @@ func (client *Client) CanAlterEvidence() bool {
 		}
 	}
 	return true
+}
+
+func (client *Client) ChangeCharacter(id int) {
+	if client.Area().SwitchChar(client.CharID(), id) {
+		client.SetCharID(id)
+		client.SendPacket("PV", "0", "CID", strconv.Itoa(id))
+		writeToArea(client.Area(), "CharsCheck", client.Area().Taken()...)
+	}
 }

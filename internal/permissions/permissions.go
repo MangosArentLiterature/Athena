@@ -33,7 +33,8 @@ var PermissionField = map[string]uint64{
 	"BYPASS_LOCK": 1 << 3,
 	"MOD_EVI":     1 << 4,
 	"MODIFY_AREA": 1 << 5,
-	"ADMIN":       math.MaxInt64,
+	"MOVE_USERS":  1 << 6,
+	"ADMIN":       math.MaxUint64,
 }
 
 // GetPermissions returns the permissions for a role.

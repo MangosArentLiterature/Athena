@@ -548,3 +548,15 @@ func (lock Lock) String() string {
 	}
 	return ""
 }
+
+func (evimod EvidenceMode) String() string {
+	switch evimod {
+	case EviAny:
+		return "any"
+	case EviCMs:
+		return "cms"
+	case EviMods:
+		return "mods"
+	}
+	return ""
+}

@@ -54,9 +54,9 @@ var (
 	players                        playercount.PlayerCount
 	enableDiscord                  bool
 	clients                        ClientList = ClientList{list: make(map[*Client]struct{})}
-	updatePlayers                             = make(chan int)
-	advertDone                                = make(chan struct{})
-	FatalError                                = make(chan error)
+	updatePlayers                             = make(chan int)      // Updates the advertiser's player count.
+	advertDone                                = make(chan struct{}) // Signals the advertiser to stop.
+	FatalError                                = make(chan error)    // Signals that the server should stop after a fatal error.
 )
 
 // InitServer initalizes the server's database, uids, configs, and advertiser.
@@ -65,6 +65,7 @@ func InitServer(conf *settings.Config) error {
 	uids.InitHeap(conf.MaxPlayers)
 	config = conf
 
+	// Load server data.
 	var err error
 	music, err = settings.LoadMusic()
 	if err != nil {
@@ -97,12 +98,15 @@ func InitServer(conf *settings.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse default_ban_duration: %v", err.Error())
 	}
+
+	// Discord webhook.
 	if config.WebhookURL != "" {
 		enableDiscord = true
 		webhook.ServerName = config.Name
 		discord.WebhookURL = config.WebhookURL
 	}
 
+	// Load areas.
 	for _, a := range areaData {
 		areaNames += a.Name + "#"
 		var evi_mode area.EvidenceMode
@@ -141,14 +145,13 @@ func InitServer(conf *settings.Config) error {
 // ListenTCP starts the server's TCP listener.
 func ListenTCP() {
 	listener, err := net.Listen("tcp", config.Addr+":"+strconv.Itoa(config.Port))
-
 	if err != nil {
 		FatalError <- err
 		return
 	}
 	logger.LogDebug("TCP listener started.")
-
 	defer listener.Close()
+
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -169,8 +172,9 @@ func ListenWS() {
 		FatalError <- err
 		return
 	}
-	defer listener.Close()
 	logger.LogDebug("WS listener started.")
+	defer listener.Close()
+
 	s := &http.Server{}
 	http.HandleFunc("/", HandleWS)
 	err = s.Serve(listener)
@@ -180,7 +184,7 @@ func ListenWS() {
 }
 
 func HandleWS(w http.ResponseWriter, r *http.Request) {
-	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: []string{"web.aceattorneyonline.com"}})
+	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: []string{"web.aceattorneyonline.com"}}) // WS connections not originating from webAO will be rejected.
 	if err != nil {
 		logger.LogError(err.Error())
 		return
@@ -211,12 +215,8 @@ func writeToArea(area *area.Area, header string, contents ...string) {
 
 // addToBuffer writes to an area buffer according to a client's action.
 func addToBuffer(client *Client, action string, message string, audit bool) {
-	var auth string
-	if client.Authenticated() {
-		auth = " (*)"
-	}
-	s := fmt.Sprintf("[%v] [%v] %v%v (%v) %v: %v", time.Now().UTC().Format("15:04:05"), action,
-		client.CurrentCharacter(), auth, client.Ipid(), client.OOCName(), message)
+	s := fmt.Sprintf("%v|%v|%v|%v|%v|%v",
+		time.Now().UTC().Format("15:04:05"), action, client.CurrentCharacter(), client.Ipid(), client.OOCName(), message)
 	client.Area().UpdateBuffer(s)
 	if audit {
 		logger.WriteAudit(s)
@@ -315,6 +315,7 @@ func CleanupServer() {
 	db.Close()
 }
 
+// Returns the IPID for a given IP address.
 func getIpid(s string) string {
 	// For privacy and ease of use, AO servers traditionally use a hashed version of a client's IP address to identify a client.
 	// Athena uses the MD5 hash of the IP address, encoded in base64.

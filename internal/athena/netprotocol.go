@@ -24,11 +24,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/MangosArentLiterature/Athena/internal/area"
 	"github.com/MangosArentLiterature/Athena/internal/db"
 	"github.com/MangosArentLiterature/Athena/internal/logger"
 	"github.com/MangosArentLiterature/Athena/internal/packet"
-	"github.com/MangosArentLiterature/Athena/internal/permissions"
 	"github.com/MangosArentLiterature/Athena/internal/sliceutil"
 	"github.com/MangosArentLiterature/Athena/internal/webhook"
 )
@@ -143,18 +141,14 @@ func pktChangeChar(client *Client, p *packet.Packet) {
 	if err != nil {
 		return
 	}
-	if client.Area().SwitchChar(client.CharID(), newid) {
-		client.SetCharID(newid)
-		client.SendPacket("PV", "0", "CID", strconv.Itoa(newid))
-		writeToArea(client.Area(), "CharsCheck", client.Area().Taken()...)
-	}
+	client.ChangeCharacter(newid)
 }
 
 // Handles MS#%
 func pktIC(client *Client, p *packet.Packet) {
 	// Welcome to the MS packet validation hell.
 
-	if client.CharID() == -1 || !client.CanSpeak() { // Literally 1984
+	if !client.CanSpeak() { // Literally 1984
 		client.SendServerMessage("You are not allowed to speak in this area.")
 		return
 	}
@@ -336,15 +330,10 @@ func pktAM(client *Client, p *packet.Packet) {
 		}
 		for _, a := range areas {
 			if a.Name() == decode(p.Body[0]) {
-				if a.Lock() == area.LockLocked &&
-					!sliceutil.ContainsInt(a.Invited(), client.Uid()) &&
-					!permissions.HasPermission(client.Perms(), permissions.PermissionField["BYPASS_LOCK"]) {
+				if !client.ChangeArea(a) {
 					client.SendServerMessage("You are not invited to that area.")
-					return
 				}
-				addToBuffer(client, "AREA", "Left area.", false)
-				client.ChangeArea(a)
-				addToBuffer(client, "AREA", "Joined area.", false)
+				client.SendServerMessage(fmt.Sprintf("Moved to %v.", a.Name()))
 				return
 			}
 		}
@@ -387,7 +376,11 @@ func pktWTCE(client *Client, p *packet.Packet) {
 		client.SendServerMessage("You are not allowed to play WT/CE in this area.")
 		return
 	}
-	writeToArea(client.Area(), "RT", p.Body[0])
+	if len(p.Body) >= 2 {
+		writeToArea(client.Area(), "RT", p.Body[0], p.Body[1])
+	} else {
+		writeToArea(client.Area(), "RT", p.Body[0])
+	}
 	addToBuffer(client, "JUD", "Played WT/CE animation.", false)
 }
 
@@ -477,7 +470,8 @@ func pktModcall(client *Client, p *packet.Packet) {
 	addToBuffer(client, "MOD", fmt.Sprintf("Called moderator for reason: %v", s), false)
 	for c := range clients.GetAllClients() {
 		if c.Authenticated() {
-			c.SendPacket("ZZ", fmt.Sprintf("[%v] %v (%v): %v", client.Area().Name(), client.CurrentCharacter(), client.Ipid(), s))
+			c.SendPacket("ZZ", fmt.Sprintf("MODCALL\n----------\nArea: %v\nUser: [%v] %v\nIPID: %v\nReason: %v",
+				client.Area().Name(), client.Uid(), client.CurrentCharacter(), client.Ipid(), s))
 		}
 	}
 	if enableDiscord {
