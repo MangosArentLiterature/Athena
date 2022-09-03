@@ -35,6 +35,18 @@ import (
 	"go.uber.org/ratelimit"
 )
 
+type MuteState int
+
+const (
+	Unmuted MuteState = iota
+	ICMuted
+	OOCMuted
+	ICOOCMuted
+	MusicMuted
+	JudMuted
+	ParrotMuted
+)
+
 type ClientPairInfo struct {
 	name      string
 	emote     string
@@ -60,6 +72,8 @@ type Client struct {
 	mod_name      string
 	pos           string
 	case_prefs    [5]bool
+	muted         MuteState
+	muteuntil     time.Time
 }
 
 // NewClient returns a new client.
@@ -488,13 +502,22 @@ func (client *Client) HasCMPermission() bool {
 	}
 }
 
-func (client *Client) CanSpeak() bool {
+func (client *Client) CanSpeakIC() bool {
 	switch {
 	case client.CharID() == -1:
 		return false
 	case client.Area().Lock() == area.LockSpectatable && !sliceutil.ContainsInt(client.area.Invited(), client.Uid()) &&
 		!permissions.HasPermission(client.Perms(), permissions.PermissionField["BYPASS_LOCK"]):
 		return false
+	case client.Muted() == ICMuted || client.Muted() == ICOOCMuted:
+		return client.CheckUnmute()
+	}
+	return true
+}
+
+func (client *Client) CanSpeakOOC() bool {
+	if client.Muted() == OOCMuted || client.Muted() == ICOOCMuted {
+		return client.CheckUnmute()
 	}
 	return true
 }
@@ -508,13 +531,44 @@ func (client *Client) CanChangeMusic() bool {
 	case client.Area().Lock() == area.LockSpectatable && !sliceutil.ContainsInt(client.area.Invited(), client.Uid()) &&
 		!permissions.HasPermission(client.Perms(), permissions.PermissionField["BYPASS_LOCK"]):
 		return false
+	case client.Muted() == MusicMuted || client.Muted() == ICMuted || client.Muted() == ICOOCMuted:
+		return client.CheckUnmute()
 	}
 	return true
 }
 
+func (client *Client) CanJud() bool {
+	switch {
+	case client.CharID() == -1:
+		return false
+	case client.Area().Lock() == area.LockSpectatable && !sliceutil.ContainsInt(client.area.Invited(), client.Uid()) &&
+		!permissions.HasPermission(client.Perms(), permissions.PermissionField["BYPASS_LOCK"]):
+		return false
+	case client.Muted() == JudMuted || client.Muted() == ICMuted || client.Muted() == ICOOCMuted:
+		return client.CheckUnmute()
+	}
+	return true
+}
+
+func (client *Client) CheckUnmute() bool {
+	if time.Now().UTC().After(client.UnmuteTime()) && !client.UnmuteTime().IsZero() {
+		client.SendServerMessage("You have been unmuted.")
+		client.SetMuted(Unmuted)
+		return true
+	}
+	return false
+}
+
+func (client *Client) IsParrot() bool {
+	if client.Muted() == ParrotMuted {
+		return !client.CheckUnmute()
+	}
+	return false
+}
+
 // canAlterEvidence is a helper function that returns if a client can alter evidence in their current area.
 func (client *Client) CanAlterEvidence() bool {
-	if client.CharID() == -1 || !client.CanSpeak() {
+	if client.CharID() == -1 || !client.CanSpeakIC() {
 		return false
 	}
 	switch client.Area().EvidenceMode() {
@@ -536,4 +590,40 @@ func (client *Client) ChangeCharacter(id int) {
 		client.SendPacket("PV", "0", "CID", strconv.Itoa(id))
 		writeToArea(client.Area(), "CharsCheck", client.Area().Taken()...)
 	}
+}
+
+func (client *Client) Muted() MuteState {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.muted
+}
+
+func (client *Client) SetMuted(m MuteState) {
+	client.mu.Lock()
+	client.muted = m
+	client.mu.Unlock()
+}
+
+func (client *Client) UnmuteTime() time.Time {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.muteuntil
+}
+
+func (client *Client) SetUnmuteTime(t time.Time) {
+	client.mu.Lock()
+	client.muteuntil = t
+	client.mu.Unlock()
+}
+
+func (m MuteState) String() string {
+	switch m {
+	case ICMuted:
+		return "IC"
+	case OOCMuted:
+		return "OOC"
+	case ICOOCMuted:
+		return "IC/OOC"
+	}
+	return ""
 }

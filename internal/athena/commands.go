@@ -106,6 +106,12 @@ var commands = map[string]cmdMapValue{
 	"unban":   {1, "Usage: /unban <id1>,<id2>...", "Nullifies a ban.", permissions.PermissionField["BAN"], cmdUnban},
 	"editban": {2, "Usage: /editban <id1>,<id2>... <reason>", "Changes the reason of ban(s).", permissions.PermissionField["BAN"], cmdEditBan},
 	"modchat": {1, "Usage: /modchat <message>", "Sends a message to the moderator chat.", permissions.PermissionField["MOD_CHAT"], cmdModChat},
+	"mute": {1, "Usage: /mute [-ic][-ooc][-m][-j][-d duration][-r reason] <uid1>,<uid2>...\n-ic: Mutes IC.\n-ooc: Mutes OOC.\n-m: Mutes music change.\n-j: Mutes jud actions.\n-d: Duration, in seconds.\n -r: Reason for mute.",
+		"Mutes a client from IC/OOC/Music/Judge", permissions.PermissionField["MUTE"], cmdMute},
+	"unmute": {1, "Usage: /unmute <uid1>,<uid2>...", "Unmutes a client.", permissions.PermissionField["MUTE"], cmdUnmute},
+	"parrot": {1, "Usage: /parrot [-d duration][-r reason] <uid1>,<uid2>...\n-d: Duration, in seconds.\n-r: Reason.",
+		"Parrots a client.", permissions.PermissionField["MUTE"], cmdParrot},
+	"log": {1, "Usage: /log <area>", "Gets an area's log buffer.", permissions.PermissionField["LOG"], cmdLog},
 }
 
 // ParseCommand calls the appropriate function for a given command.
@@ -1034,4 +1040,144 @@ func cmdModChat(client *Client, args []string, _ string) {
 			c.SendPacket("CT", fmt.Sprintf("[MODCHAT] %v", client.OOCName()), msg, "1")
 		}
 	}
+}
+
+// Handles /mute
+func cmdMute(client *Client, args []string, usage string) {
+	flags := flag.NewFlagSet("", 0)
+	flags.SetOutput(io.Discard)
+	reason := flags.String("r", "", "")
+	music := flags.Bool("m", false, "")
+	jud := flags.Bool("j", false, "")
+	ic := flags.Bool("ic", false, "")
+	ooc := flags.Bool("ooc", false, "")
+	duration := flags.Int("d", -1, "")
+	flags.Parse(args)
+
+	var m MuteState
+	var msg string
+	switch {
+	case *ic && *ooc:
+		m = ICOOCMuted
+		msg = "You have been muted from IC/OOC"
+	case *ic:
+		m = ICMuted
+		msg = "You have been muted from IC"
+	case *ooc:
+		m = OOCMuted
+		msg = "You have been muted from OOC"
+	case *music:
+		m = MusicMuted
+		msg = "You have been muted from changing the music"
+	case *jud:
+		m = JudMuted
+		msg = "You have been muted from judge controls"
+	default:
+		m = ICMuted
+		msg = "You have been muted from IC"
+	}
+	if *duration != -1 {
+		msg += fmt.Sprintf(" for %v seconds", *duration)
+	}
+	if *reason != "" {
+		msg += " for reason: " + *reason
+	}
+	if len(flags.Args()) == 0 {
+		client.SendServerMessage("Not enough arguments:\n" + usage)
+		return
+	}
+	toMute := getUidList(strings.Split(flags.Arg(0), ","))
+	var count int
+	var report string
+	for _, c := range toMute {
+		if c.Muted() == m {
+			continue
+		}
+		c.SetMuted(m)
+		if *duration == -1 {
+			c.SetUnmuteTime(time.Time{})
+		} else {
+			c.SetUnmuteTime(time.Now().UTC().Add(time.Duration(*duration) * time.Second))
+		}
+		c.SendServerMessage(msg)
+		count++
+		report += fmt.Sprintf("%v, ", c.Uid())
+	}
+	report = strings.TrimSuffix(report, ", ")
+	client.SendServerMessage(fmt.Sprintf("Muted %v clients.", count))
+	addToBuffer(client, "CMD", fmt.Sprintf("Muted %v.", report), false)
+}
+
+// Handles /unmute
+func cmdUnmute(client *Client, args []string, _ string) {
+	toUnmute := getUidList(strings.Split(args[0], ","))
+	var count int
+	var report string
+	for _, c := range toUnmute {
+		if c.Muted() == Unmuted {
+			continue
+		}
+		c.SetMuted(Unmuted)
+		c.SendServerMessage("You have been unmuted.")
+		count++
+		report += fmt.Sprintf("%v, ", c.Uid())
+	}
+	report = strings.TrimSuffix(report, ", ")
+	client.SendServerMessage(fmt.Sprintf("Unmuted %v clients.", count))
+	addToBuffer(client, "CMD", fmt.Sprintf("Unmuted %v.", report), false)
+}
+
+// Handles /Parrot
+func cmdParrot(client *Client, args []string, usage string) {
+	flags := flag.NewFlagSet("", 0)
+	flags.SetOutput(io.Discard)
+	reason := flags.String("r", "", "")
+	duration := flags.Int("d", -1, "")
+	flags.Parse(args)
+	msg := "You have been turned into a parrot"
+	if *duration != -1 {
+		msg += fmt.Sprintf(" for %v seconds", *duration)
+	}
+	if *reason != "" {
+		msg += " for reason: " + *reason
+	}
+	if len(flags.Args()) == 0 {
+		client.SendServerMessage("Not enough arguments:\n" + usage)
+		return
+	}
+	toParrot := getUidList(strings.Split(flags.Arg(0), ","))
+	var count int
+	var report string
+	for _, c := range toParrot {
+		if c.Muted() != Unmuted {
+			continue
+		}
+		c.SetMuted(ParrotMuted)
+		if *duration == -1 {
+			c.SetUnmuteTime(time.Time{})
+		} else {
+			c.SetUnmuteTime(time.Now().UTC().Add(time.Duration(*duration) * time.Second))
+		}
+		c.SendServerMessage(msg)
+		count++
+		report += fmt.Sprintf("%v, ", c.Uid())
+	}
+	report = strings.TrimSuffix(report, ", ")
+	client.SendServerMessage(fmt.Sprintf("Parroted %v clients.", count))
+	addToBuffer(client, "CMD", fmt.Sprintf("Parroted %v.", report), false)
+}
+
+func cmdLog(client *Client, args []string, _ string) {
+	wantedArea, err := strconv.Atoi(args[0])
+	if err != nil {
+		client.SendServerMessage("Invalid area.")
+		return
+	}
+	for i, a := range areas {
+		if i == wantedArea {
+			client.SendServerMessage(strings.Join(a.Buffer(), "\n"))
+			return
+		}
+	}
+	client.SendServerMessage("Invalid area.")
 }

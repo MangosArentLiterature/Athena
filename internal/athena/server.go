@@ -21,6 +21,7 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/http"
 	"strconv"
@@ -45,18 +46,18 @@ import (
 const version = ""
 
 var (
-	config                         *settings.Config
-	characters, music, backgrounds []string
-	areas                          []*area.Area
-	areaNames                      string
-	roles                          []permissions.Role
-	uids                           uidmanager.UidManager
-	players                        playercount.PlayerCount
-	enableDiscord                  bool
-	clients                        ClientList = ClientList{list: make(map[*Client]struct{})}
-	updatePlayers                             = make(chan int)      // Updates the advertiser's player count.
-	advertDone                                = make(chan struct{}) // Signals the advertiser to stop.
-	FatalError                                = make(chan error)    // Signals that the server should stop after a fatal error.
+	config                                 *settings.Config
+	characters, music, backgrounds, parrot []string
+	areas                                  []*area.Area
+	areaNames                              string
+	roles                                  []permissions.Role
+	uids                                   uidmanager.UidManager
+	players                                playercount.PlayerCount
+	enableDiscord                          bool
+	clients                                ClientList = ClientList{list: make(map[*Client]struct{})}
+	updatePlayers                                     = make(chan int)      // Updates the advertiser's player count.
+	advertDone                                        = make(chan struct{}) // Signals the advertiser to stop.
+	FatalError                                        = make(chan error)    // Signals that the server should stop after a fatal error.
 )
 
 // InitServer initalizes the server's database, uids, configs, and advertiser.
@@ -94,6 +95,12 @@ func InitServer(conf *settings.Config) error {
 		return fmt.Errorf("empty background list")
 	}
 
+	parrot, err = settings.LoadFile("/parrot.txt")
+	if err != nil {
+		return err
+	} else if len(parrot) == 0 {
+		return fmt.Errorf("empty parrot list")
+	}
 	_, err = str2duration.ParseDuration(conf.BanLen)
 	if err != nil {
 		return fmt.Errorf("failed to parse default_ban_duration: %v", err.Error())
@@ -326,4 +333,10 @@ func getIpid(s string) string {
 	hash := md5.Sum([]byte(strings.Join(addr[:len(addr)-1], ":")))
 	ipid := base64.StdEncoding.EncodeToString(hash[:])
 	return ipid[:len(ipid)-2] // Removes the trailing padding.
+}
+
+// getParrotMsg returns a random string from the server's parrot list.
+func getParrotMsg() string {
+	gen := rand.New(rand.NewSource(time.Now().Unix()))
+	return parrot[gen.Intn(len(parrot))]
 }

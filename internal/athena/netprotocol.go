@@ -151,7 +151,7 @@ func pktChangeChar(client *Client, p *packet.Packet) {
 func pktIC(client *Client, p *packet.Packet) {
 	// Welcome to the MS packet validation hell.
 
-	if !client.CanSpeak() { // Literally 1984
+	if !client.CanSpeakIC() { // Literally 1984
 		client.SendServerMessage("You are not allowed to speak in this area.")
 		return
 	}
@@ -168,6 +168,9 @@ func pktIC(client *Client, p *packet.Packet) {
 	args = append(args[:20], args[18:]...)
 
 	client.SetPos(args[5])
+	if client.IsParrot() { // Bring out the parrot please.
+		args[4] = getParrotMsg()
+	}
 	emote_mod, err := strconv.Atoi(args[7])
 	if err != nil {
 		return
@@ -214,10 +217,10 @@ func pktIC(client *Client, p *packet.Packet) {
 	case !strings.EqualFold(characters[client.CharID()], args[2]) && !client.Area().IniswapAllowed(): // character name
 		client.SendServerMessage("Iniswapping is not allowed in this area.")
 		return
-	case len(decode(p.Body[4])) > config.MaxMsg: // message
+	case len(decode(args[4])) > config.MaxMsg: // message
 		client.SendServerMessage("Your message exceeds the maximum message length!")
 		return
-	case p.Body[4] == client.LastMsg():
+	case args[4] == client.LastMsg():
 		return
 	case emote_mod < 0 || emote_mod > 6:
 		return
@@ -292,10 +295,10 @@ func pktIC(client *Client, p *packet.Packet) {
 	}
 
 	client.SetPairInfo(args[2], args[3], args[12], args[19])
-	client.SetLastMsg(p.Body[4])
+	client.SetLastMsg(args[4])
 	client.Area().SetLastSpeaker(client.CharID())
 	writeToArea(client.Area(), "MS", args...)
-	addToBuffer(client, "IC", "\""+p.Body[4]+"\"", false)
+	addToBuffer(client, "IC", "\""+args[4]+"\"", false)
 }
 
 // Handles MC#%
@@ -345,7 +348,7 @@ func pktAM(client *Client, p *packet.Packet) {
 
 // Handles HP#%
 func pktHP(client *Client, p *packet.Packet) {
-	if client.CharID() == -1 || !client.CanSpeak() {
+	if client.CharID() == -1 || !client.CanJud() {
 		client.SendServerMessage("You are not allowed to change the penalty bar in this area.")
 		return
 	}
@@ -375,7 +378,7 @@ func pktHP(client *Client, p *packet.Packet) {
 
 // Handles RT#%
 func pktWTCE(client *Client, p *packet.Packet) {
-	if client.CharID() == -1 || !client.CanSpeak() {
+	if client.CharID() == -1 || !client.CanJud() {
 		client.SendServerMessage("You are not allowed to play WT/CE in this area.")
 		return
 	}
@@ -413,6 +416,10 @@ func pktOOC(client *Client, p *packet.Packet) {
 		command := strings.TrimPrefix(regex.FindString(decoded), "/")
 		args := strings.Split(strings.Join(regex.Split(decoded, 1), ""), " ")[1:]
 		ParseCommand(client, command, args)
+		return
+	}
+	if !client.CanSpeakOOC() {
+		client.SendServerMessage("You are muted from speaking in OOC.")
 		return
 	}
 	writeToArea(client.Area(), "CT", encode(client.OOCName()), p.Body[1], "0")
