@@ -74,6 +74,7 @@ type Client struct {
 	case_prefs    [5]bool
 	muted         MuteState
 	muteuntil     time.Time
+	showname      string
 }
 
 // NewClient returns a new client.
@@ -587,6 +588,7 @@ func (client *Client) CanAlterEvidence() bool {
 func (client *Client) ChangeCharacter(id int) {
 	if client.Area().SwitchChar(client.CharID(), id) {
 		client.SetCharID(id)
+		client.SetShowname(characters[id])
 		client.SendPacket("PV", "0", "CID", strconv.Itoa(id))
 		writeToArea(client.Area(), "CharsCheck", client.Area().Taken()...)
 	}
@@ -613,6 +615,18 @@ func (client *Client) UnmuteTime() time.Time {
 func (client *Client) SetUnmuteTime(t time.Time) {
 	client.mu.Lock()
 	client.muteuntil = t
+	client.mu.Unlock()
+}
+
+func (client *Client) Showname() string {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.showname
+}
+
+func (client *Client) SetShowname(s string) {
+	client.mu.Lock()
+	client.showname = s
 	client.mu.Unlock()
 }
 

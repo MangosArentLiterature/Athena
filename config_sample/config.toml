@@ -65,6 +65,9 @@ max_dice = 100
 # Sets the maximum number of sides a rolled dice can have.
 max_side = 100
 
+# Sets the maximum number of statements a recorded testimony can contain.
+max_testimony = 10
+
 [MasterServer]
 
 # Whether or not to advertise your server on the master server, which will make it discoverable by players.

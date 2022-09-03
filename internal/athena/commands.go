@@ -93,6 +93,9 @@ var commands = map[string]cmdMapValue{
 	"charselect":   {0, "Usage: /charselect [uid1],[uid2]...", "Moves back to character select.", permissions.PermissionField["NONE"], cmdCharSelect},
 	"players":      {0, "Usage: /players [-a]\n-a: Shows players in all areas.", "Shows players in the current area, or all areas.", permissions.PermissionField["NONE"], cmdPlayers},
 	"areainfo":     {0, "Usage: /areainfo", "Shows information on the current area.", permissions.PermissionField["NONE"], cmdAreaInfo},
+	"doc":          {0, "Usage: /doc [-c] [doc]\n-c: Clears the doc.", "Returns or sets the area's doc.", permissions.PermissionField["NONE"], cmdDoc},
+	"play":         {1, "Usage: /play <song>", "Plays a song.", permissions.PermissionField["CM"], cmdPlay},
+	"testimony":    {0, "Usage /testimony <record|stop|play|update|insert|delete>", "Modifies the testimony recorder.", permissions.PermissionField["NONE"], cmdTestimony},
 	//mod commands
 	"login":  {2, "Usage: /login <username> <password>", "Logs in as moderator.", permissions.PermissionField["NONE"], cmdLogin},
 	"logout": {0, "Usage: /logout", "Logs out as moderator.", permissions.PermissionField["NONE"], cmdLogout},
@@ -884,6 +887,10 @@ func cmdPM(client *Client, args []string, _ string) {
 
 // Handles /global
 func cmdGlobal(client *Client, args []string, _ string) {
+	if !client.CanSpeakOOC() {
+		client.SendServerMessage("You are muted from sending OOC messages.")
+		return
+	}
 	writeToAll("CT", fmt.Sprintf("[GLOBAL] %v", client.OOCName()), strings.Join(args, " "), "1")
 }
 
@@ -1167,6 +1174,7 @@ func cmdParrot(client *Client, args []string, usage string) {
 	addToBuffer(client, "CMD", fmt.Sprintf("Parroted %v.", report), false)
 }
 
+// Handles /log
 func cmdLog(client *Client, args []string, _ string) {
 	wantedArea, err := strconv.Atoi(args[0])
 	if err != nil {
@@ -1180,4 +1188,104 @@ func cmdLog(client *Client, args []string, _ string) {
 		}
 	}
 	client.SendServerMessage("Invalid area.")
+}
+
+// Handles /doc
+func cmdDoc(client *Client, args []string, _ string) {
+	flags := flag.NewFlagSet("", 0)
+	flags.SetOutput(io.Discard)
+	clear := flags.Bool("c", false, "")
+	flags.Parse(args)
+	if len(args) == 0 {
+		if client.Area().Doc() == "" {
+			client.SendServerMessage("This area does not have a doc set.")
+			return
+		}
+		client.SendServerMessage(client.Area().Doc())
+		return
+	} else {
+		if !client.HasCMPermission() {
+			client.SendServerMessage("You do not have permission to change the doc.")
+			return
+		} else if *clear {
+			client.Area().SetDoc("")
+			sendAreaServerMessage(client.Area(), fmt.Sprintf("%v cleared the doc.", client.OOCName()))
+			return
+		} else if len(flags.Args()) != 0 {
+			client.Area().SetDoc(flags.Arg(0))
+			sendAreaServerMessage(client.Area(), fmt.Sprintf("%v updated the doc.", client.OOCName()))
+			return
+		}
+	}
+}
+
+// Handles /play
+func cmdPlay(client *Client, args []string, _ string) {
+	if !client.CanChangeMusic() {
+		client.SendServerMessage("You are not allowed to change the music in this area.")
+		return
+	}
+	writeToArea(client.Area(), "MC", strings.Join(args, " "), fmt.Sprint(client.CharID()), client.Showname(), "1", "0")
+}
+
+// Handles /testimony
+func cmdTestimony(client *Client, args []string, _ string) {
+	if len(args) == 0 {
+		if !client.Area().HasTestimony() {
+			client.SendServerMessage("This area has no recorded testimony.")
+			return
+		}
+		client.SendServerMessage(strings.Join(client.area.Testimony(), "\n"))
+		return
+	} else if !client.HasCMPermission() {
+		client.SendServerMessage("You do not have permission to use that command.")
+		return
+	}
+	switch args[0] {
+	case "record":
+		if client.Area().TRState() != area.TRIdle {
+			client.SendServerMessage("The recorder is currently active.")
+			return
+		}
+		client.Area().TRClear()
+		client.Area().TRSetState(area.TRRecording)
+		client.SendServerMessage("Recording testimony.")
+	case "stop":
+		client.Area().TRSetState(area.TRIdle)
+		client.SendServerMessage("Recorder stopped.")
+		client.Area().TRJump(0)
+		writeToArea(client.Area(), "RT", "testimony1#1")
+	case "play":
+		if !client.Area().HasTestimony() {
+			client.SendServerMessage("No testimony recorded.")
+			return
+		}
+		client.Area().TRSetState(area.TRPlayback)
+		client.SendServerMessage("Playing testimony.")
+		writeToArea(client.Area(), "RT", "testimony2")
+		writeToArea(client.Area(), "MS", client.Area().TRCurrentStatement())
+	case "update":
+		if client.Area().TRState() != area.TRPlayback {
+			client.SendServerMessage("The recorder is not active.")
+			return
+		}
+		client.Area().TRSetState(area.TRUpdating)
+	case "insert":
+		if client.Area().TRState() != area.TRPlayback {
+			client.SendServerMessage("The recorder is not active.")
+			return
+		}
+		client.Area().TRSetState(area.TRInserting)
+	case "delete":
+		if client.Area().TRState() != area.TRPlayback {
+			client.SendServerMessage("The recorder is not active.")
+			return
+		}
+		if client.Area().TRCurrentIndex() > 0 {
+			err := client.Area().TRRemove()
+			if err != nil {
+				client.SendServerMessage("Failed to delete statement.")
+			}
+		}
+	}
 }

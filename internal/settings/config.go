@@ -37,24 +37,25 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Addr       string `toml:"addr"`
-	Port       int    `toml:"port"`
-	Name       string `toml:"name"`
-	Desc       string `toml:"description"`
-	MaxPlayers int    `toml:"max_players"`
-	MaxMsg     int    `toml:"max_message_length"`
-	BufSize    int    `toml:"log_buffer_size"`
-	BanLen     string `toml:"default_ban_duration"`
-	LogLevel   string `toml:"log_level"`
-	LogDir     string `toml:"log_directory"`
-	EnableWS   bool   `toml:"enable_webao"`
-	WSPort     int    `toml:"webao_port"`
-	MCLimit    int    `toml:"multiclient_limit"`
-	AssetURL   string `toml:"asset_url"`
-	WebhookURL string `toml:"webhook_url"`
-	MaxDice    int    `toml:"max_dice"`
-	MaxSide    int    `toml:"max_sides"`
-	Motd       string `toml:"motd"`
+	Addr         string `toml:"addr"`
+	Port         int    `toml:"port"`
+	Name         string `toml:"name"`
+	Desc         string `toml:"description"`
+	MaxPlayers   int    `toml:"max_players"`
+	MaxMsg       int    `toml:"max_message_length"`
+	BufSize      int    `toml:"log_buffer_size"`
+	BanLen       string `toml:"default_ban_duration"`
+	LogLevel     string `toml:"log_level"`
+	LogDir       string `toml:"log_directory"`
+	EnableWS     bool   `toml:"enable_webao"`
+	WSPort       int    `toml:"webao_port"`
+	MCLimit      int    `toml:"multiclient_limit"`
+	AssetURL     string `toml:"asset_url"`
+	WebhookURL   string `toml:"webhook_url"`
+	MaxDice      int    `toml:"max_dice"`
+	MaxSide      int    `toml:"max_sides"`
+	Motd         string `toml:"motd"`
+	MaxStatement int    `toml:"max_testimony"`
 }
 type MSConfig struct {
 	Advertise bool   `toml:"advertise"`
@@ -65,21 +66,22 @@ type MSConfig struct {
 func defaultConfig() *Config {
 	return &Config{
 		ServerConfig{
-			Addr:       "",
-			Port:       27016,
-			Name:       "Unnamed Server",
-			Desc:       "",
-			MaxPlayers: 100,
-			MaxMsg:     256,
-			BufSize:    150,
-			BanLen:     "3d",
-			LogLevel:   "info",
-			LogDir:     "logs",
-			EnableWS:   false,
-			WSPort:     27017,
-			MCLimit:    16,
-			MaxDice:    100,
-			MaxSide:    100,
+			Addr:         "",
+			Port:         27016,
+			Name:         "Unnamed Server",
+			Desc:         "",
+			MaxPlayers:   100,
+			MaxMsg:       256,
+			BufSize:      150,
+			BanLen:       "3d",
+			LogLevel:     "info",
+			LogDir:       "logs",
+			EnableWS:     false,
+			WSPort:       27017,
+			MCLimit:      16,
+			MaxDice:      100,
+			MaxSide:      100,
+			MaxStatement: 10,
 		},
 		MSConfig{
 			Advertise: false,

@@ -17,6 +17,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package area
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 
@@ -26,6 +27,7 @@ import (
 type EvidenceMode int
 type Status int
 type Lock int
+type TRState int
 
 const (
 	EviMods EvidenceMode = iota
@@ -46,6 +48,20 @@ const (
 	LockLocked
 )
 
+const (
+	TRIdle TRState = iota
+	TRRecording
+	TRPlayback
+	TRUpdating
+	TRInserting
+)
+
+type TestimonyRecorder struct {
+	Testimony []string
+	Index     int
+	State     TRState
+}
+
 type Area struct {
 	data     AreaData
 	defaults defaults
@@ -62,6 +78,8 @@ type Area struct {
 	status   Status
 	lock     Lock
 	invited  []int
+	doc      string
+	tr       TestimonyRecorder
 }
 
 type AreaData struct {
@@ -480,6 +498,9 @@ func (a *Area) Reset() {
 	a.data.Force_bglist = a.defaults.force_bglist
 	a.data.Lock_bg = a.defaults.lock_bg
 	a.data.Lock_music = a.defaults.lock_music
+	a.tr.Index = 0
+	a.tr.State = TRIdle
+	a.tr.Testimony = []string{}
 	a.mu.Unlock()
 }
 
@@ -517,6 +538,147 @@ func (a *Area) SetLockMusic(b bool) {
 	a.mu.Lock()
 	a.data.Lock_music = b
 	a.mu.Unlock()
+}
+
+func (a *Area) Doc() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.doc
+}
+
+func (a *Area) SetDoc(s string) {
+	a.mu.Lock()
+	a.doc = s
+	a.mu.Unlock()
+}
+
+func (a *Area) TRState() TRState {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.tr.State
+}
+
+func (a *Area) TRSetState(s TRState) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.tr.State = s
+}
+
+func (a *Area) TRCurrentStatement() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.tr.Testimony[a.tr.Index]
+}
+
+func (a *Area) TRCurrentIndex() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.tr.Index
+}
+
+func (a *Area) TRInsert(s string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.tr.Index != 0 {
+		x := strings.Split(s, "#")
+		x[14] = "1"
+		s = strings.Join(x, "#")
+	}
+	a.tr.Testimony = append(a.tr.Testimony, "")
+	copy(a.tr.Testimony[a.tr.Index+2:], a.tr.Testimony[a.tr.Index+1:])
+	a.tr.Testimony[a.tr.Index+1] = s
+	return nil
+}
+
+func (a *Area) TRRemove() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.tr.Testimony) < 2 {
+		return fmt.Errorf("empty testimony")
+	}
+	a.tr.Testimony = append(a.tr.Testimony[:a.tr.Index], a.tr.Testimony[a.tr.Index+1:]...)
+	return nil
+}
+
+func (a *Area) TRUpdate(s string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.tr.Index != 0 {
+		x := strings.Split(s, "#")
+		x[14] = "1"
+		s = strings.Join(x, "#")
+	}
+	a.tr.Testimony[a.tr.Index] = s
+	return nil
+}
+
+func (a *Area) TRAdvance() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.tr.Index == len(a.tr.Testimony)-1 {
+		a.tr.Index = 1
+	} else {
+		a.tr.Index++
+	}
+}
+
+func (a *Area) TRRewind() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.tr.Index <= 1 {
+		a.tr.Index = 1
+	} else {
+		a.tr.Index--
+	}
+}
+
+func (a *Area) TRAppend(s string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.tr.Index != 0 {
+		x := strings.Split(s, "#")
+		x[14] = "1"
+		s = strings.Join(x, "#")
+	}
+	a.tr.Testimony = append(a.tr.Testimony, s)
+}
+
+func (a *Area) TRClear() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.tr.Testimony = []string{}
+	a.tr.Index = 0
+}
+
+func (a *Area) TRLen() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return len(a.tr.Testimony)
+}
+
+func (a *Area) TRJump(i int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.tr.Index = i
+}
+
+func (a *Area) HasTestimony() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return len(a.tr.Testimony) > 2
+}
+
+func (a *Area) Testimony() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	var rl []string
+	for i, s := range a.tr.Testimony {
+		if i == 0 {
+			continue
+		}
+		rl = append(rl, strings.Split(s, "#")[4])
+	}
+	return rl
 }
 
 func (status Status) String() string {

@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/MangosArentLiterature/Athena/internal/area"
 	"github.com/MangosArentLiterature/Athena/internal/db"
 	"github.com/MangosArentLiterature/Athena/internal/logger"
 	"github.com/MangosArentLiterature/Athena/internal/packet"
@@ -236,7 +237,7 @@ func pktIC(client *Client, p *packet.Packet) {
 		return
 	case text < 0 || text > 6: // text color
 		return
-	case len(args[14]) > 30: // showname
+	case len(args[15]) > 30: // showname
 		client.SendServerMessage("Your showname is too long!")
 		return
 	case args[22] != "0" && args[22] != "1": // non-interrupting preanim
@@ -294,8 +295,71 @@ func pktIC(client *Client, p *packet.Packet) {
 		}
 	}
 
+	// Testimony recorder
+	if client.Pos() == "wit" && client.Area().TRState() != area.TRIdle {
+		switch client.Area().TRState() {
+		case area.TRRecording:
+			if client.Area().TRLen() >= config.MaxStatement+1 {
+				client.SendServerMessage("Unable to add message: Max statements reached.")
+				break
+			}
+			if client.Area().TRCurrentIndex() == 0 {
+				args[4] = "~~\n-- " + args[4] + " --"
+				args[14] = "3"
+				writeToArea(client.Area(), "RT", "testimony1")
+			}
+			client.Area().TRAppend(strings.Join(args, "#"))
+			client.Area().TRAdvance()
+		case area.TRInserting:
+			if client.Area().TRLen() >= config.MaxStatement {
+				client.SendServerMessage("Unable to insert message: Max statements reached.")
+				client.Area().TRSetState(area.TRPlayback)
+				break
+			}
+			client.Area().TRInsert(strings.Join(args, "#"))
+			client.Area().TRSetState(area.TRPlayback)
+			client.Area().TRAdvance()
+		case area.TRUpdating:
+			if client.Area().TRCurrentIndex() == 0 {
+				client.SendServerMessage("Cannot edit testimony title.")
+				client.Area().TRSetState(area.TRPlayback)
+				break
+			}
+			client.Area().TRUpdate(strings.Join(args, "#"))
+			client.Area().TRSetState(area.TRPlayback)
+		}
+	}
+	if client.Area().TRState() == area.TRPlayback {
+		regx := regexp.MustCompile("[<>]([[:digit:]]+)?")
+		s := regx.FindString(decode(args[4]))
+		if s != "" {
+			if strings.ContainsRune(s, '<') {
+				client.Area().TRRewind()
+				writeToArea(client.Area(), "MS", client.Area().TRCurrentStatement())
+				return
+			}
+			id, err := strconv.Atoi(strings.Split(s, ">")[1])
+			if err != nil {
+				client.Area().TRAdvance()
+				writeToArea(client.Area(), "MS", client.Area().TRCurrentStatement())
+				return
+			} else {
+				if id > 0 && id < client.Area().TRLen() {
+					client.Area().TRJump(id)
+					writeToArea(client.Area(), "MS", client.Area().TRCurrentStatement())
+					return
+				}
+			}
+		}
+	}
+
 	client.SetPairInfo(args[2], args[3], args[12], args[19])
 	client.SetLastMsg(args[4])
+	if strings.TrimSpace(args[15]) == "" {
+		client.SetShowname(characters[client.CharID()])
+	} else {
+		client.SetShowname(args[15])
+	}
 	client.Area().SetLastSpeaker(client.CharID())
 	writeToArea(client.Area(), "MS", args...)
 	addToBuffer(client, "IC", "\""+args[4]+"\"", false)
@@ -315,7 +379,7 @@ func pktAM(client *Client, p *packet.Packet) {
 			return
 		}
 		song := p.Body[0]
-		name := characters[client.CharID()]
+		name := client.Showname()
 		effects := "0"
 		if !strings.ContainsRune(p.Body[0], '.') { // Chosen song is a category, and should stop the music.
 			song = "~stop.mp3"
