@@ -40,6 +40,7 @@ type BanLookup int
 const (
 	IPID BanLookup = iota
 	HDID
+	BANID
 )
 
 var DBPath string
@@ -142,15 +143,48 @@ func UnBan(id int) error {
 	return nil
 }
 
-// GetBan returns the ban with the given ID.
-func GetBan(id int) (BanInfo, error) {
-	result := db.QueryRow("SELECT * FROM BANS WHERE ID = ?", id)
-	var ban BanInfo
-	if result.Scan(&ban.Id, &ban.Ipid, &ban.Hdid, &ban.Time, &ban.Duration, &ban.Reason, &ban.Moderator) == sql.ErrNoRows {
-		return ban, sql.ErrNoRows
-	} else {
-		return ban, nil
+// GetBan returns a list of bans matching a given value.
+func GetBan(by BanLookup, value any) ([]BanInfo, error) {
+	var stmt *sql.Stmt
+	var err error
+	switch by {
+	case BANID:
+		stmt, err = db.Prepare("SELECT * FROM BANS WHERE ID = ?")
+	case IPID:
+		stmt, err = db.Prepare("SELECT * FROM BANS WHERE IPID = ? ORDER BY TIME DESC")
 	}
+	if err != nil {
+		return []BanInfo{}, err
+	}
+	result, err := stmt.Query(value)
+	if err != nil {
+		return []BanInfo{}, err
+	}
+	stmt.Close()
+	defer result.Close()
+	var bans []BanInfo
+	for result.Next() {
+		var b BanInfo
+		result.Scan(&b.Id, &b.Ipid, &b.Hdid, &b.Time, &b.Duration, &b.Reason, &b.Moderator)
+		bans = append(bans, b)
+	}
+	return bans, nil
+}
+
+// GetRecentBans returns the 5 most recent bans.
+func GetRecentBans() ([]BanInfo, error) {
+	result, err := db.Query("SELECT * FROM BANS ORDER BY TIME DESC LIMIT 5")
+	if err != nil {
+		return []BanInfo{}, err
+	}
+	defer result.Close()
+	var bans []BanInfo
+	for result.Next() {
+		var b BanInfo
+		result.Scan(&b.Id, &b.Ipid, &b.Hdid, &b.Time, &b.Duration, &b.Reason, &b.Moderator)
+		bans = append(bans, b)
+	}
+	return bans, nil
 }
 
 // IsBanned returns whether the given ipid/hdid is banned, and the info of the ban.
@@ -173,9 +207,11 @@ func IsBanned(by BanLookup, value string) (bool, BanInfo, error) {
 	stmt.Close()
 	defer result.Close()
 	for result.Next() {
-		var duration int64
-		var id int
-		var reason string
+		var (
+			duration int64
+			id       int
+			reason   string
+		)
 		result.Scan(&id, &duration, &reason)
 		if duration == -1 || time.Unix(duration, 0).UTC().After(time.Now().UTC()) {
 			return true, BanInfo{Id: id, Duration: duration, Reason: reason}, nil
@@ -184,9 +220,9 @@ func IsBanned(by BanLookup, value string) (bool, BanInfo, error) {
 	return false, BanInfo{}, nil
 }
 
-// UpdateBan updates the duration and reason of a ban.
-func UpdateBan(id int, duration int, reason string) error {
-	_, err := db.Exec("UPDATE BANS SET DURATION = ?, REASON = ? WHERE ID = ?", duration, reason, id)
+// UpdateBan updates the reason of a ban.
+func UpdateBan(id int, reason string) error {
+	_, err := db.Exec("UPDATE BANS SET REASON = ? WHERE ID = ?", reason, id)
 	if err != nil {
 		return err
 	}

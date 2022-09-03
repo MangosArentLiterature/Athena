@@ -101,6 +101,11 @@ var commands = map[string]cmdMapValue{
 	"ban": {3, "Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>\n-u: Target uid(s).\n-i: Target ipid(s).\n-d: The duration to ban for.",
 		"Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
 	"mod": {1, "Usage: /mod [-g] <message>\n-g: Sends globally.", "Sends a message speaking officially as a moderator.", permissions.PermissionField["MOD"], cmdMod},
+	"getban": {0, "Usage: /getban [-b banid | -i ipid]\n-b: The banid to search.\n-i: The IPID to search.",
+		"Gets bans by banid, IPID, or the most recent bans.", permissions.PermissionField["BAN_INFO"], cmdGetBan},
+	"unban":   {1, "Usage: /unban <id1>,<id2>...", "Nullifies a ban.", permissions.PermissionField["BAN"], cmdUnban},
+	"editban": {2, "Usage: /editban <id1>,<id2>... <reason>", "Changes the reason of ban(s).", permissions.PermissionField["BAN"], cmdEditBan},
+	"modchat": {1, "Usage: /modchat <message>", "Sends a message to the moderator chat.", permissions.PermissionField["MOD_CHAT"], cmdModChat},
 }
 
 // ParseCommand calls the appropriate function for a given command.
@@ -929,4 +934,104 @@ func cmdMod(client *Client, args []string, usage string) {
 		writeToArea(client.Area(), "CT", fmt.Sprintf("[MOD] %v", client.OOCName()), msg, "1")
 	}
 	addToBuffer(client, "OOC", msg, false)
+}
+
+// Handles /getban
+func cmdGetBan(client *Client, args []string, _ string) {
+	flags := flag.NewFlagSet("", 0)
+	flags.SetOutput(io.Discard)
+	banid := flags.Int("b", -1, "")
+	ipid := flags.String("i", "", "")
+	flags.Parse(args)
+	s := "Bans:\n----------"
+	entry := func(b db.BanInfo) string {
+		var d string
+		if b.Duration == -1 {
+			d = "∞"
+		} else {
+			d = time.Unix(b.Duration, 0).UTC().Format("02 Jan 2006 15:04 MST")
+		}
+
+		return fmt.Sprintf("\nID: %v\nIPID: %v\nHDID: %v\nBanned on: %v\nUntil: %v\nReason: %v\nModerator: %v\n----------",
+			b.Id, b.Ipid, b.Hdid, time.Unix(b.Time, 0).UTC().Format("02 Jan 2006 15:04 MST"), d, b.Reason, b.Moderator)
+	}
+	if *banid > 0 {
+		b, err := db.GetBan(db.BANID, *banid)
+		if err != nil || len(b) == 0 {
+			client.SendServerMessage("No ban with that ID exists.")
+			return
+		}
+		s += entry(b[0])
+	} else if *ipid != "" {
+		bans, err := db.GetBan(db.IPID, *ipid)
+		if err != nil || len(bans) == 0 {
+			client.SendServerMessage("No bans with that IPID exist.")
+			return
+		}
+		for _, b := range bans {
+			s += entry(b)
+		}
+	} else {
+		bans, err := db.GetRecentBans()
+		if err != nil {
+			logger.LogErrorf("while getting recent bans: %v", err)
+			client.SendServerMessage("An unexpected error occured.")
+			return
+		}
+		for _, b := range bans {
+			s += entry(b)
+		}
+	}
+	client.SendServerMessage(s)
+}
+
+// Handles /unban
+func cmdUnban(client *Client, args []string, _ string) {
+	toUnban := strings.Split(args[0], ",")
+	var report string
+	for _, s := range toUnban {
+		id, err := strconv.Atoi(s)
+		if err != nil {
+			continue
+		}
+		err = db.UnBan(id)
+		if err != nil {
+			continue
+		}
+		report += fmt.Sprintf("%v, ", s)
+	}
+	report = strings.TrimSuffix(report, ", ")
+	client.SendServerMessage(fmt.Sprintf("Nullified bans: %v", report))
+	addToBuffer(client, "CMD", fmt.Sprintf("Nullified bans: %v", report), true)
+}
+
+// Handles /editban
+func cmdEditBan(client *Client, args []string, _ string) {
+	toUpdate := strings.Split(args[0], ",")
+	reason := strings.Join(args[1:], " ")
+	var report string
+	for _, s := range toUpdate {
+		id, err := strconv.Atoi(s)
+		if err != nil {
+			continue
+		}
+		err = db.UpdateBan(id, reason)
+		if err != nil {
+			continue
+		}
+		report += fmt.Sprintf("%v, ", s)
+	}
+	report = strings.TrimSuffix(report, ", ")
+	client.SendServerMessage(fmt.Sprintf("Updated bans: %v", report))
+	addToBuffer(client, "CMD", fmt.Sprintf("Nullified bans: %v to reason: %v.", report, reason), true)
+}
+
+// Handles /modchat
+func cmdModChat(client *Client, args []string, _ string) {
+	msg := strings.Join(args, " ")
+	for c := range clients.GetAllClients() {
+		if permissions.HasPermission(c.Perms(), permissions.PermissionField["MOD_CHAT"]) {
+			c.SendPacket("CT", fmt.Sprintf("[MODCHAT] %v", client.OOCName()), msg, "1")
+		}
+	}
 }

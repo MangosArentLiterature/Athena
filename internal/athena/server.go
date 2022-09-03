@@ -218,7 +218,7 @@ func writeToArea(area *area.Area, header string, contents ...string) {
 
 // addToBuffer writes to an area buffer according to a client's action.
 func addToBuffer(client *Client, action string, message string, audit bool) {
-	s := fmt.Sprintf("%v|%v|%v|%v|%v|%v",
+	s := fmt.Sprintf("%v | %v | %v | %v | %v | %v",
 		time.Now().UTC().Format("15:04:05"), action, client.CurrentCharacter(), client.Ipid(), client.OOCName(), message)
 	client.Area().UpdateBuffer(s)
 	if audit {
