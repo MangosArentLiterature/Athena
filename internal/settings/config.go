@@ -52,6 +52,9 @@ type ServerConfig struct {
 	MCLimit    int    `toml:"multiclient_limit"`
 	AssetURL   string `toml:"asset_url"`
 	WebhookURL string `toml:"webhook_url"`
+	MaxDice    int    `toml:"max_dice"`
+	MaxSide    int    `toml:"max_sides"`
+	Motd       string `toml:"motd"`
 }
 type MSConfig struct {
 	Advertise bool   `toml:"advertise"`
@@ -75,6 +78,8 @@ func defaultConfig() *Config {
 			EnableWS:   false,
 			WSPort:     27017,
 			MCLimit:    16,
+			MaxDice:    100,
+			MaxSide:    100,
 		},
 		MSConfig{
 			Advertise: false,

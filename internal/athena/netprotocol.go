@@ -132,6 +132,9 @@ func pktReqDone(client *Client, _ *packet.Packet) {
 	sendCMArup()
 	sendStatusArup()
 	sendLockArup()
+	if config.Motd != "" {
+		client.SendServerMessage(config.Motd)
+	}
 	logger.LogInfof("Client (IPID:%v UID:%v) joined the server", client.Ipid(), client.Uid())
 }
 
@@ -387,11 +390,13 @@ func pktWTCE(client *Client, p *packet.Packet) {
 // Handles CT#%
 func pktOOC(client *Client, p *packet.Packet) {
 	username := decode(strings.TrimSpace(p.Body[0]))
-	if username == "" || username == config.Name || len(username) > 30 {
+	if username == "" || username == config.Name || len(username) > 30 || strings.ContainsAny(username, "[]") {
 		client.SendServerMessage("Invalid username.")
 		return
 	} else if len(p.Body[1]) > config.MaxMsg {
 		client.SendServerMessage("Your message exceeds the maximum message length!")
+		return
+	} else if strings.TrimSpace(p.Body[1]) == "" {
 		return
 	}
 	for c := range clients.GetAllClients() {
@@ -410,8 +415,7 @@ func pktOOC(client *Client, p *packet.Packet) {
 		ParseCommand(client, command, args)
 		return
 	}
-
-	writeToArea(client.Area(), "CT", encode(client.oocName), p.Body[1], "0")
+	writeToArea(client.Area(), "CT", encode(client.OOCName()), p.Body[1], "0")
 	addToBuffer(client, "OOC", "\""+p.Body[1]+"\"", false)
 }
 

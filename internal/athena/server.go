@@ -200,6 +200,9 @@ func HandleWS(w http.ResponseWriter, r *http.Request) {
 // writeToAll sends a message to all connected clients.
 func writeToAll(header string, contents ...string) {
 	for client := range clients.GetAllClients() {
+		if client.Uid() == -1 {
+			continue
+		}
 		client.SendPacket(header, contents...)
 	}
 }

@@ -20,6 +20,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math/rand"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -64,14 +66,18 @@ var commands = map[string]cmdMapValue{
 	"rmusr":   {1, "Usage: /rmusr <username>", "Removes a moderator user.", permissions.PermissionField["ADMIN"], cmdRemoveUser},
 	"setrole": {2, "Usage: /setrole <username> <role>", "Updates a moderator user's role.", permissions.PermissionField["ADMIN"], cmdChangeRole},
 	//general commands
-	"about": {0, "Usage: /about", "Prints Athena version information.", permissions.PermissionField["NONE"], cmdAbout},
-	"move":  {1, "Usage: /move [-u <uid1,<uid2>...] <area>", "Moves user(s) to an area.", permissions.PermissionField["NONE"], cmdMove},
+	"about":  {0, "Usage: /about", "Prints Athena version information.", permissions.PermissionField["NONE"], cmdAbout},
+	"move":   {1, "Usage: /move [-u <uid1,<uid2>...] <area>\n-u: Target uid(s).", "Moves user(s) to an area.", permissions.PermissionField["NONE"], cmdMove},
+	"pm":     {2, "Usage: /pm <uid1>,<uid2>... <message>", "Privately messages another user(s).", permissions.PermissionField["NONE"], cmdPM},
+	"global": {1, "Usage: /global <message>", "Sends a message to all clients across all areas.", permissions.PermissionField["NONE"], cmdGlobal},
+	"roll":   {1, "Usage: /roll [-p] <dice>d<sides>\n-p: Makes the roll private", "Rolls dice and returns the result(s).", permissions.PermissionField["NONE"], cmdRoll},
+	"motd":   {0, "Usage /motd", "Sends the server's message of the day (MoTD).", permissions.PermissionField["NONE"], cmdMotd},
 	//area commands
 	"bg":           {1, "Usage: /bg <background>", "Sets the area's background.", permissions.PermissionField["CM"], cmdBg},
 	"status":       {1, "Usage: /status <status>", "Sets the area's status.", permissions.PermissionField["CM"], cmdStatus},
 	"cm":           {0, "Usage: /cm [uid1],[uid2]...", "Adds CM(s) to the area.", permissions.PermissionField["NONE"], cmdCM},
 	"uncm":         {0, "Usage: /uncm [uid1],[uid2]...", "Removes CM(s) from the area.", permissions.PermissionField["CM"], cmdUnCM},
-	"lock":         {0, "Usage: /lock [-s]", "Locks the area or sets it to spectatable.", permissions.PermissionField["CM"], cmdLock},
+	"lock":         {0, "Usage: /lock [-s]\n-s: Sets the area to spectatable.", "Locks the area or sets it to spectatable.", permissions.PermissionField["CM"], cmdLock},
 	"unlock":       {0, "Usage: /unlock", "Unlocks the area.", permissions.PermissionField["CM"], cmdUnlock},
 	"invite":       {1, "Usage: /invite <uid1>,<uid2>...", "Invites user(s) to the area.", permissions.PermissionField["CM"], cmdInvite},
 	"uninvite":     {1, "Usage: /uninvite <uid1>,<uid2>...", "Uninvites user(s) to the area.", permissions.PermissionField["CM"], cmdUninvite},
@@ -85,13 +91,16 @@ var commands = map[string]cmdMapValue{
 	"lockbg":       {1, "Usage: /lockbg <true|false>", "Toggles locking the area's BG", permissions.PermissionField["MODIFY_AREA"], cmdLockBG},
 	"lockmusic":    {1, "Usage: /lockmusic <true|false>", "Toggles making music in the area CM only.", permissions.PermissionField["CM"], cmdLockMusic},
 	"charselect":   {0, "Usage: /charselect [uid1],[uid2]...", "Moves back to character select.", permissions.PermissionField["NONE"], cmdCharSelect},
-	"players":      {0, "Usage: /players [-a]", "Shows players in the current area, or all areas.", permissions.PermissionField["NONE"], cmdPlayers},
+	"players":      {0, "Usage: /players [-a]\n-a: Shows players in all areas.", "Shows players in the current area, or all areas.", permissions.PermissionField["NONE"], cmdPlayers},
 	"areainfo":     {0, "Usage: /areainfo", "Shows information on the current area.", permissions.PermissionField["NONE"], cmdAreaInfo},
 	//mod commands
 	"login":  {2, "Usage: /login <username> <password>", "Logs in as moderator.", permissions.PermissionField["NONE"], cmdLogin},
 	"logout": {0, "Usage: /logout", "Logs out as moderator.", permissions.PermissionField["NONE"], cmdLogout},
-	"kick":   {3, "Usage: /kick -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... <reason>", "Kicks user(s) from the server.", permissions.PermissionField["KICK"], cmdKick},
-	"ban":    {3, "Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>", "Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
+	"kick": {3, "Usage: /kick -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... <reason>\n-u: Target uid(s).\n-i: Target ipid(s).",
+		"Kicks user(s) from the server.", permissions.PermissionField["KICK"], cmdKick},
+	"ban": {3, "Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>\n-u: Target uid(s).\n-i: Target ipid(s).\n-d: The duration to ban for.",
+		"Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
+	"mod": {1, "Usage: /mod [-g] <message>\n-g: Sends globally.", "Sends a message speaking officially as a moderator.", permissions.PermissionField["MOD"], cmdMod},
 }
 
 // ParseCommand calls the appropriate function for a given command.
@@ -851,4 +860,73 @@ func cmdAreaInfo(client *Client, _ []string, _ string) {
 		client.Area().Background(), client.Area().EvidenceMode().String(), client.Area().IniswapAllowed(), client.Area().NoInterrupt(),
 		client.Area().CMsAllowed(), client.Area().ForceBGList(), client.Area().LockBG(), client.Area().LockMusic())
 	client.SendServerMessage(out)
+}
+
+// Handles /pm
+func cmdPM(client *Client, args []string, _ string) {
+	msg := strings.Join(args[1:], " ")
+	toPM := getUidList(strings.Split(args[0], ","))
+	for _, c := range toPM {
+		c.SendPacket("CT", fmt.Sprintf("[PM] %v", client.OOCName()), msg, "1")
+	}
+}
+
+// Handles /global
+func cmdGlobal(client *Client, args []string, _ string) {
+	writeToAll("CT", fmt.Sprintf("[GLOBAL] %v", client.OOCName()), strings.Join(args, " "), "1")
+}
+
+// Handles /roll
+func cmdRoll(client *Client, args []string, _ string) {
+	flags := flag.NewFlagSet("", 0)
+	flags.SetOutput(io.Discard)
+	private := flags.Bool("p", false, "")
+	flags.Parse(args)
+	b, _ := regexp.MatchString("([[:digit:]])d([[:digit:]])", flags.Arg(0))
+	if !b {
+		client.SendServerMessage("Invalid command.")
+		return
+	}
+	s := strings.Split(flags.Arg(0), "d")
+	num, _ := strconv.Atoi(s[0])
+	sides, _ := strconv.Atoi(s[1])
+	if num <= 0 || num > config.MaxDice || sides <= 0 || sides > config.MaxSide {
+		client.SendServerMessage("Invalid command.")
+		return
+	}
+	var result []string
+	gen := rand.New(rand.NewSource(time.Now().Unix()))
+	for i := 0; i < num; i++ {
+		result = append(result, fmt.Sprint(gen.Intn(sides)+1))
+	}
+	if *private {
+		client.SendServerMessage(fmt.Sprintf("Results: %v.", strings.Join(result, ", ")))
+	} else {
+		sendAreaServerMessage(client.Area(), fmt.Sprintf("%v rolled %v. Results: %v.", client.OOCName(), flags.Arg(0), strings.Join(result, ", ")))
+	}
+	addToBuffer(client, "CMD", fmt.Sprintf("Rolled %v.", flags.Arg(0)), false)
+}
+
+// Handles /motd
+func cmdMotd(client *Client, _ []string, _ string) {
+	client.SendServerMessage(config.Motd)
+}
+
+// Handles /mod
+func cmdMod(client *Client, args []string, usage string) {
+	flags := flag.NewFlagSet("", 0)
+	flags.SetOutput(io.Discard)
+	global := flags.Bool("g", false, "")
+	flags.Parse(args)
+	if len(flags.Args()) == 0 {
+		client.SendServerMessage("Not enough arguments:\n" + usage)
+		return
+	}
+	msg := strings.Join(flags.Args(), " ")
+	if *global {
+		writeToAll("CT", fmt.Sprintf("[MOD] [GLOBAL] %v", client.OOCName()), msg, "1")
+	} else {
+		writeToArea(client.Area(), "CT", fmt.Sprintf("[MOD] %v", client.OOCName()), msg, "1")
+	}
+	addToBuffer(client, "OOC", msg, false)
 }

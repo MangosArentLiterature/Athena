@@ -32,6 +32,7 @@ import (
 	"github.com/MangosArentLiterature/Athena/internal/packet"
 	"github.com/MangosArentLiterature/Athena/internal/permissions"
 	"github.com/MangosArentLiterature/Athena/internal/sliceutil"
+	"go.uber.org/ratelimit"
 )
 
 type ClientPairInfo struct {
@@ -112,7 +113,9 @@ func (client *Client) HandleClient() {
 	}
 	input.Split(splitfn) // Split input when a packet delimiter ('%') is found
 
+	rl := ratelimit.New(10, ratelimit.WithoutSlack)
 	for input.Scan() {
+		rl.Take()
 		if logger.DebugNetwork {
 			logger.LogDebugf("From %v: %v", client.ipid, strings.TrimSpace(input.Text()))
 		}

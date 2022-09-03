@@ -17,6 +17,10 @@ name = "Unnamed Server"
 # The description of your server.
 description = "A brand new server!"
 
+# Sets the server's message of the day (MoTD)
+# This is sent to every player when they first join the server, or with /motd.
+motd = "Welcome to my server!"
+
 # The maximum amount of players who can join the server at once.
 max_players = 100
 
@@ -54,6 +58,12 @@ asset_url = ""
 # To setup the webhook, follow the instructions here (https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks)
 # and set this to the URL of your webhook.
 webhook_url = ""
+
+# Sets the maximum number of dice that can be rolled at once.
+max_dice = 100
+
+# Sets the maximum number of sides a rolled dice can have.
+max_side = 100
 
 [MasterServer]
 
