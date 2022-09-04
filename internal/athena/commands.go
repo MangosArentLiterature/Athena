@@ -95,13 +95,14 @@ var commands = map[string]cmdMapValue{
 	"areainfo":     {0, "Usage: /areainfo", "Shows information on the current area.", permissions.PermissionField["NONE"], cmdAreaInfo},
 	"doc":          {0, "Usage: /doc [-c] [doc]\n-c: Clears the doc.", "Returns or sets the area's doc.", permissions.PermissionField["NONE"], cmdDoc},
 	"play":         {1, "Usage: /play <song>", "Plays a song.", permissions.PermissionField["CM"], cmdPlay},
-	"testimony":    {0, "Usage /testimony <record|stop|play|update|insert|delete>", "Modifies the testimony recorder.", permissions.PermissionField["NONE"], cmdTestimony},
+	"testimony": {0, "Usage /testimony <record|stop|play|update|insert|delete>", "Modifies the testimony recorder, or prints current testimony.",
+		permissions.PermissionField["NONE"], cmdTestimony},
 	//mod commands
 	"login":  {2, "Usage: /login <username> <password>", "Logs in as moderator.", permissions.PermissionField["NONE"], cmdLogin},
 	"logout": {0, "Usage: /logout", "Logs out as moderator.", permissions.PermissionField["NONE"], cmdLogout},
 	"kick": {3, "Usage: /kick -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... <reason>\n-u: Target uid(s).\n-i: Target ipid(s).",
 		"Kicks user(s) from the server.", permissions.PermissionField["KICK"], cmdKick},
-	"ban": {3, "Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>\n-u: Target uid(s).\n-i: Target ipid(s).\n-d: The duration to ban for.",
+	"ban": {3, "Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>\n-u: Target uid(s).\n-i: Target ipid(s).\n-d: The duration to ban for, with format *s*d*h*d*w, e.g. 30s for 30 seconds.",
 		"Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
 	"mod": {1, "Usage: /mod [-g] <message>\n-g: Sends globally.", "Sends a message speaking officially as a moderator.", permissions.PermissionField["MOD_SPEAK"], cmdMod},
 	"getban": {0, "Usage: /getban [-b banid | -i ipid]\n-b: The banid to search.\n-i: The IPID to search.",
@@ -111,7 +112,7 @@ var commands = map[string]cmdMapValue{
 	"modchat": {1, "Usage: /modchat <message>", "Sends a message to the moderator chat.", permissions.PermissionField["MOD_CHAT"], cmdModChat},
 	"mute": {1, "Usage: /mute [-ic][-ooc][-m][-j][-d duration][-r reason] <uid1>,<uid2>...\n-ic: Mutes IC.\n-ooc: Mutes OOC.\n-m: Mutes music change.\n-j: Mutes jud actions.\n-d: Duration, in seconds.\n -r: Reason for mute.",
 		"Mutes a client from IC/OOC/Music/Judge", permissions.PermissionField["MUTE"], cmdMute},
-	"unmute": {1, "Usage: /unmute <uid1>,<uid2>...", "Unmutes a client.", permissions.PermissionField["MUTE"], cmdUnmute},
+	"unmute": {1, "Usage: /unmute <uid1>,<uid2>...", "Unmutes (or unparrots) user(s).", permissions.PermissionField["MUTE"], cmdUnmute},
 	"parrot": {1, "Usage: /parrot [-d duration][-r reason] <uid1>,<uid2>...\n-d: Duration, in seconds.\n-r: Reason.",
 		"Parrots a client.", permissions.PermissionField["MUTE"], cmdParrot},
 	"log": {1, "Usage: /log <area>", "Gets an area's log buffer.", permissions.PermissionField["LOG"], cmdLog},
@@ -127,7 +128,7 @@ func ParseCommand(client *Client, command string, args []string) {
 			}
 		}
 		sort.Strings(s)
-		client.SendServerMessage("Recognized commands:\n" + strings.Join(s, "\n"))
+		client.SendServerMessage("Recognized commands:\n" + strings.Join(s, "\n") + "To view detailed usage on a command, do /<command> -h")
 		return
 	}
 
@@ -175,7 +176,7 @@ func cmdLogin(client *Client, args []string, usage string) {
 // Handles /logout
 func cmdLogout(client *Client, _ []string, _ string) {
 	if !client.Authenticated() {
-		client.SendServerMessage("Invalid command.")
+		client.SendServerMessage("You are not logged in.")
 	}
 	addToBuffer(client, "AUTH", fmt.Sprintf("Logged out as %v.", client.ModName()), true)
 	client.RemoveAuth()
@@ -656,7 +657,7 @@ func cmdNoIntPres(client *Client, args []string, _ string) {
 		client.Area().SetNoInterrupt(false)
 		result = "disabled"
 	default:
-		client.SendServerMessage("Invalid command.")
+		client.SendServerMessage("Argument not recognized.")
 		return
 	}
 	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v has %v non-interrupting preanims in this area.", client.OOCName(), result))
@@ -674,7 +675,7 @@ func cmdAllowIniswap(client *Client, args []string, _ string) {
 		client.Area().SetIniswapAllowed(false)
 		result = "disabled"
 	default:
-		client.SendServerMessage("Invalid command.")
+		client.SendServerMessage("Argument not recognized.")
 		return
 	}
 	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v has %v iniswapping in this area.", client.OOCName(), result))
@@ -692,7 +693,7 @@ func cmdForceBGList(client *Client, args []string, _ string) {
 		client.Area().SetForceBGList(false)
 		result = "unenforced"
 	default:
-		client.SendServerMessage("Invalid command.")
+		client.SendServerMessage("Argument not recognized.")
 		return
 	}
 	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v has %v the BG list in this area.", client.OOCName(), result))
@@ -710,7 +711,7 @@ func cmdLockBG(client *Client, args []string, _ string) {
 		client.Area().SetLockBG(false)
 		result = "unlocked"
 	default:
-		client.SendServerMessage("Invalid commmand.")
+		client.SendServerMessage("Argument not recognized.")
 		return
 	}
 	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v has %v the background in this area.", client.OOCName(), result))
@@ -728,7 +729,7 @@ func cmdLockMusic(client *Client, args []string, _ string) {
 		client.Area().SetLockMusic(false)
 		result = "disabled"
 	default:
-		client.SendServerMessage("Invalid command.")
+		client.SendServerMessage("Argument not recognized.")
 		return
 	}
 	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v has %v CM-only music in this area.", client.OOCName(), result))
@@ -746,7 +747,7 @@ func cmdAllowCMs(client *Client, args []string, _ string) {
 		client.Area().SetCMsAllowed(false)
 		result = "disallowed"
 	default:
-		client.SendServerMessage("Invalid command.")
+		client.SendServerMessage("Argument not recognized.")
 	}
 	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v has %v CMs in this area.", client.OOCName(), result))
 	addToBuffer(client, "CMD", fmt.Sprintf("Set allowing CMs to %v.", args[0]), false)
@@ -835,7 +836,7 @@ func cmdPlayers(client *Client, args []string, _ string) {
 	flags.Parse(args)
 	out := "\nPlayers\n----------\n"
 	entry := func(c *Client, auth bool) string {
-		s := fmt.Sprintf("-\n[%v] %v\n", c.Uid(), c.CurrentCharacter())
+		s := fmt.Sprintf("[%v] %v\n", c.Uid(), c.CurrentCharacter())
 		if auth {
 			if c.Authenticated() {
 				s += fmt.Sprintf("Mod: %v\n", c.ModName())
@@ -902,14 +903,14 @@ func cmdRoll(client *Client, args []string, _ string) {
 	flags.Parse(args)
 	b, _ := regexp.MatchString("([[:digit:]])d([[:digit:]])", flags.Arg(0))
 	if !b {
-		client.SendServerMessage("Invalid command.")
+		client.SendServerMessage("Argument not recognized.")
 		return
 	}
 	s := strings.Split(flags.Arg(0), "d")
 	num, _ := strconv.Atoi(s[0])
 	sides, _ := strconv.Atoi(s[1])
 	if num <= 0 || num > config.MaxDice || sides <= 0 || sides > config.MaxSide {
-		client.SendServerMessage("Invalid command.")
+		client.SendServerMessage("Invalid num/side.")
 		return
 	}
 	var result []string

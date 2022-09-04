@@ -127,7 +127,9 @@ func pktReqDone(client *Client, _ *packet.Packet) {
 	}
 	client.SetUid(uids.GetUid())
 	players.AddPlayer()
-	updatePlayers <- players.GetPlayerCount()
+	if config.Advertise {
+		updatePlayers <- players.GetPlayerCount()
+	}
 	client.JoinArea(areas[0])
 	client.SendPacket("DONE")
 	sendCMArup()

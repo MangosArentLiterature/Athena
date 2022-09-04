@@ -185,7 +185,9 @@ func (client *Client) clientCleanup() {
 		}
 		uids.ReleaseUid(client.Uid())
 		players.RemovePlayer()
-		updatePlayers <- players.GetPlayerCount()
+		if config.Advertise {
+			updatePlayers <- players.GetPlayerCount()
+		}
 		client.Area().RemoveChar(client.CharID())
 		sendPlayerArup()
 	}
