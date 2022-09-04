@@ -43,7 +43,7 @@ import (
 	"nhooyr.io/websocket"
 )
 
-const version = ""
+const version = "1.0.0"
 
 var (
 	config                                 *settings.Config
@@ -173,6 +173,7 @@ func ListenTCP() {
 	}
 }
 
+// ListenWS starts the server's websocket listener.
 func ListenWS() {
 	listener, err := net.Listen("tcp", config.Addr+":"+strconv.Itoa(config.WSPort))
 	if err != nil {
@@ -190,6 +191,7 @@ func ListenWS() {
 	}
 }
 
+// HandleWS handles a websocket connection.
 func HandleWS(w http.ResponseWriter, r *http.Request) {
 	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: []string{"web.aceattorneyonline.com"}}) // WS connections not originating from webAO will be rejected.
 	if err != nil {
@@ -233,7 +235,7 @@ func addToBuffer(client *Client, action string, message string, audit bool) {
 	}
 }
 
-// sendPlayerArup sends a player ARUP update to all connected clients.
+// sendPlayerArup sends a player ARUP to all connected clients.
 func sendPlayerArup() {
 	plCounts := []string{"0"}
 	for _, a := range areas {
@@ -243,6 +245,7 @@ func sendPlayerArup() {
 	writeToAll("ARUP", plCounts...)
 }
 
+// sendCMArup sends a CM ARUP to all connected clients.
 func sendCMArup() {
 	returnL := []string{"2"}
 	for _, a := range areas {
@@ -265,6 +268,7 @@ func sendCMArup() {
 	writeToAll("ARUP", returnL...)
 }
 
+// sendStatusArup sends a status ARUP to all connected clients.
 func sendStatusArup() {
 	statuses := []string{"1"}
 	for _, a := range areas {
@@ -273,6 +277,7 @@ func sendStatusArup() {
 	writeToAll("ARUP", statuses...)
 }
 
+// sendLockArup sends a lock ARUP to all connected clients.
 func sendLockArup() {
 	locks := []string{"3"}
 	for _, a := range areas {

@@ -103,7 +103,7 @@ var commands = map[string]cmdMapValue{
 		"Kicks user(s) from the server.", permissions.PermissionField["KICK"], cmdKick},
 	"ban": {3, "Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>\n-u: Target uid(s).\n-i: Target ipid(s).\n-d: The duration to ban for.",
 		"Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
-	"mod": {1, "Usage: /mod [-g] <message>\n-g: Sends globally.", "Sends a message speaking officially as a moderator.", permissions.PermissionField["MOD"], cmdMod},
+	"mod": {1, "Usage: /mod [-g] <message>\n-g: Sends globally.", "Sends a message speaking officially as a moderator.", permissions.PermissionField["MOD_SPEAK"], cmdMod},
 	"getban": {0, "Usage: /getban [-b banid | -i ipid]\n-b: The banid to search.\n-i: The IPID to search.",
 		"Gets bans by banid, IPID, or the most recent bans.", permissions.PermissionField["BAN_INFO"], cmdGetBan},
 	"unban":   {1, "Usage: /unban <id1>,<id2>...", "Nullifies a ban.", permissions.PermissionField["BAN"], cmdUnban},
@@ -1243,46 +1243,46 @@ func cmdTestimony(client *Client, args []string, _ string) {
 	}
 	switch args[0] {
 	case "record":
-		if client.Area().TRState() != area.TRIdle {
+		if client.Area().TstState() != area.TRIdle {
 			client.SendServerMessage("The recorder is currently active.")
 			return
 		}
-		client.Area().TRClear()
-		client.Area().TRSetState(area.TRRecording)
+		client.Area().TstClear()
+		client.Area().SetTstState(area.TRRecording)
 		client.SendServerMessage("Recording testimony.")
 	case "stop":
-		client.Area().TRSetState(area.TRIdle)
+		client.Area().SetTstState(area.TRIdle)
 		client.SendServerMessage("Recorder stopped.")
-		client.Area().TRJump(0)
+		client.Area().TstJump(0)
 		writeToArea(client.Area(), "RT", "testimony1#1")
 	case "play":
 		if !client.Area().HasTestimony() {
 			client.SendServerMessage("No testimony recorded.")
 			return
 		}
-		client.Area().TRSetState(area.TRPlayback)
+		client.Area().SetTstState(area.TRPlayback)
 		client.SendServerMessage("Playing testimony.")
 		writeToArea(client.Area(), "RT", "testimony2")
-		writeToArea(client.Area(), "MS", client.Area().TRCurrentStatement())
+		writeToArea(client.Area(), "MS", client.Area().CurrentTstStatement())
 	case "update":
-		if client.Area().TRState() != area.TRPlayback {
+		if client.Area().TstState() != area.TRPlayback {
 			client.SendServerMessage("The recorder is not active.")
 			return
 		}
-		client.Area().TRSetState(area.TRUpdating)
+		client.Area().SetTstState(area.TRUpdating)
 	case "insert":
-		if client.Area().TRState() != area.TRPlayback {
+		if client.Area().TstState() != area.TRPlayback {
 			client.SendServerMessage("The recorder is not active.")
 			return
 		}
-		client.Area().TRSetState(area.TRInserting)
+		client.Area().SetTstState(area.TRInserting)
 	case "delete":
-		if client.Area().TRState() != area.TRPlayback {
+		if client.Area().TstState() != area.TRPlayback {
 			client.SendServerMessage("The recorder is not active.")
 			return
 		}
-		if client.Area().TRCurrentIndex() > 0 {
-			err := client.Area().TRRemove()
+		if client.Area().CurrentTstIndex() > 0 {
+			err := client.Area().TstRemove()
 			if err != nil {
 				client.SendServerMessage("Failed to delete statement.")
 			}

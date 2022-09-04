@@ -46,12 +46,25 @@ const (
 var DBPath string
 var db *sql.DB
 
+// Database version.
+// This should be incremented whenever changes are made to the DB that require existing databases to upgrade.
+const ver = 1
+
 // Opens the server's database connection.
 func Open() error {
 	var err error
 	db, err = sql.Open("sqlite", DBPath)
 	if err != nil {
 		return err
+	}
+	var v int
+	r := db.QueryRow("PRAGMA user_version")
+	r.Scan(&v)
+	if v < ver {
+		err := upgradeDB(v)
+		if err != nil {
+			return err
+		}
 	}
 	_, err = db.Exec("CREATE TABLE IF NOT EXISTS BANS(ID INTEGER PRIMARY KEY, IPID TEXT, HDID TEXT, TIME INTEGER, DURATION INTEGER, REASON TEXT, MODERATOR TEXT)")
 	if err != nil {
@@ -60,6 +73,18 @@ func Open() error {
 	_, err = db.Exec("CREATE TABLE IF NOT EXISTS USERS(USERNAME TEXT PRIMARY KEY, PASSWORD TEXT, PERMISSIONS TEXT)")
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+// upgradeDB upgrades the server's database to the latest version.
+func upgradeDB(v int) error {
+	switch v {
+	case 0:
+		_, err := db.Exec("PRAGMA user_version = " + "1")
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

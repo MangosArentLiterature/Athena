@@ -296,57 +296,57 @@ func pktIC(client *Client, p *packet.Packet) {
 	}
 
 	// Testimony recorder
-	if client.Pos() == "wit" && client.Area().TRState() != area.TRIdle {
-		switch client.Area().TRState() {
+	if client.Pos() == "wit" && client.Area().TstState() != area.TRIdle {
+		switch client.Area().TstState() {
 		case area.TRRecording:
-			if client.Area().TRLen() >= config.MaxStatement+1 {
+			if client.Area().TstLen() >= config.MaxStatement+1 {
 				client.SendServerMessage("Unable to add message: Max statements reached.")
 				break
 			}
-			if client.Area().TRCurrentIndex() == 0 {
+			if client.Area().CurrentTstIndex() == 0 {
 				args[4] = "~~\n-- " + args[4] + " --"
 				args[14] = "3"
 				writeToArea(client.Area(), "RT", "testimony1")
 			}
-			client.Area().TRAppend(strings.Join(args, "#"))
-			client.Area().TRAdvance()
+			client.Area().TstAppend(strings.Join(args, "#"))
+			client.Area().TstAdvance()
 		case area.TRInserting:
-			if client.Area().TRLen() >= config.MaxStatement {
+			if client.Area().TstLen() >= config.MaxStatement {
 				client.SendServerMessage("Unable to insert message: Max statements reached.")
-				client.Area().TRSetState(area.TRPlayback)
+				client.Area().SetTstState(area.TRPlayback)
 				break
 			}
-			client.Area().TRInsert(strings.Join(args, "#"))
-			client.Area().TRSetState(area.TRPlayback)
-			client.Area().TRAdvance()
+			client.Area().TstInsert(strings.Join(args, "#"))
+			client.Area().SetTstState(area.TRPlayback)
+			client.Area().TstAdvance()
 		case area.TRUpdating:
-			if client.Area().TRCurrentIndex() == 0 {
+			if client.Area().CurrentTstIndex() == 0 {
 				client.SendServerMessage("Cannot edit testimony title.")
-				client.Area().TRSetState(area.TRPlayback)
+				client.Area().SetTstState(area.TRPlayback)
 				break
 			}
-			client.Area().TRUpdate(strings.Join(args, "#"))
-			client.Area().TRSetState(area.TRPlayback)
+			client.Area().TstUpdate(strings.Join(args, "#"))
+			client.Area().SetTstState(area.TRPlayback)
 		}
 	}
-	if client.Area().TRState() == area.TRPlayback {
+	if client.Area().TstState() == area.TRPlayback {
 		regx := regexp.MustCompile("[<>]([[:digit:]]+)?")
 		s := regx.FindString(decode(args[4]))
 		if s != "" {
 			if strings.ContainsRune(s, '<') {
-				client.Area().TRRewind()
-				writeToArea(client.Area(), "MS", client.Area().TRCurrentStatement())
+				client.Area().TstRewind()
+				writeToArea(client.Area(), "MS", client.Area().CurrentTstStatement())
 				return
 			}
 			id, err := strconv.Atoi(strings.Split(s, ">")[1])
 			if err != nil {
-				client.Area().TRAdvance()
-				writeToArea(client.Area(), "MS", client.Area().TRCurrentStatement())
+				client.Area().TstAdvance()
+				writeToArea(client.Area(), "MS", client.Area().CurrentTstStatement())
 				return
 			} else {
-				if id > 0 && id < client.Area().TRLen() {
-					client.Area().TRJump(id)
-					writeToArea(client.Area(), "MS", client.Area().TRCurrentStatement())
+				if id > 0 && id < client.Area().TstLen() {
+					client.Area().TstJump(id)
+					writeToArea(client.Area(), "MS", client.Area().CurrentTstStatement())
 					return
 				}
 			}

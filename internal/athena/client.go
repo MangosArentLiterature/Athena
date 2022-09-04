@@ -495,6 +495,7 @@ func (client *Client) ChangeArea(a *area.Area) bool {
 	return true
 }
 
+// HasCMPermission returns whether the client has CM permissions in it's area.
 func (client *Client) HasCMPermission() bool {
 	if client.Area().HasCM(client.Uid()) || permissions.HasPermission(client.Perms(), permissions.PermissionField["CM"]) {
 		return true
@@ -503,6 +504,7 @@ func (client *Client) HasCMPermission() bool {
 	}
 }
 
+// CanSpeakIC returns whether the client can send IC messages.
 func (client *Client) CanSpeakIC() bool {
 	switch {
 	case client.CharID() == -1:
@@ -516,6 +518,7 @@ func (client *Client) CanSpeakIC() bool {
 	return true
 }
 
+// CanSpeakOOC returns whether the client can send OOC messages.
 func (client *Client) CanSpeakOOC() bool {
 	if client.Muted() == OOCMuted || client.Muted() == ICOOCMuted {
 		return client.CheckUnmute()
@@ -523,6 +526,7 @@ func (client *Client) CanSpeakOOC() bool {
 	return true
 }
 
+// CanChangeMusic returns whether the client can change the music.
 func (client *Client) CanChangeMusic() bool {
 	switch {
 	case client.CharID() == -1:
@@ -538,6 +542,7 @@ func (client *Client) CanChangeMusic() bool {
 	return true
 }
 
+// CanJud returns whether the client can use judge actions.
 func (client *Client) CanJud() bool {
 	switch {
 	case client.CharID() == -1:
@@ -551,6 +556,7 @@ func (client *Client) CanJud() bool {
 	return true
 }
 
+// CheckUnmute checks the client's mute duration, unmuting them if nessecary, and returning whether the client is still muted.
 func (client *Client) CheckUnmute() bool {
 	if time.Now().UTC().After(client.UnmuteTime()) && !client.UnmuteTime().IsZero() {
 		client.SendServerMessage("You have been unmuted.")
@@ -560,6 +566,7 @@ func (client *Client) CheckUnmute() bool {
 	return false
 }
 
+// IsParrot returns if the client has been parroted.
 func (client *Client) IsParrot() bool {
 	if client.Muted() == ParrotMuted {
 		return !client.CheckUnmute()
@@ -585,6 +592,7 @@ func (client *Client) CanAlterEvidence() bool {
 	return true
 }
 
+// ChangeCharacter changes the client's character to the given character.
 func (client *Client) ChangeCharacter(id int) {
 	if client.Area().SwitchChar(client.CharID(), id) {
 		client.SetCharID(id)
@@ -594,42 +602,50 @@ func (client *Client) ChangeCharacter(id int) {
 	}
 }
 
+// Muted returns the client's mute state.
 func (client *Client) Muted() MuteState {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.muted
 }
 
+// SetMuted sets the client's mute state.
 func (client *Client) SetMuted(m MuteState) {
 	client.mu.Lock()
 	client.muted = m
 	client.mu.Unlock()
 }
 
+// UnmuteTime returns the time when the client should be unmuted.
+// If this the time is zero, the mute does not expire.
 func (client *Client) UnmuteTime() time.Time {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.muteuntil
 }
 
+// SetUnmuteTime sets the time when the client should be unmuted.
 func (client *Client) SetUnmuteTime(t time.Time) {
 	client.mu.Lock()
 	client.muteuntil = t
 	client.mu.Unlock()
 }
 
+// Showname returns the client's showname.
 func (client *Client) Showname() string {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return client.showname
 }
 
+// SetShowname sets the client's showname
 func (client *Client) SetShowname(s string) {
 	client.mu.Lock()
 	client.showname = s
 	client.mu.Unlock()
 }
 
+// String returns the string representation of a mute state.
 func (m MuteState) String() string {
 	switch m {
 	case ICMuted:

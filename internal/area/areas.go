@@ -17,7 +17,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package area
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 
@@ -105,7 +104,7 @@ type defaults struct {
 	lock_music    bool
 }
 
-// Returns a new area
+// NewArea returns a new area.
 func NewArea(data AreaData, charlen int, bufsize int, evi_mode EvidenceMode) *Area {
 	return &Area{
 		data: data,
@@ -128,14 +127,14 @@ func NewArea(data AreaData, charlen int, bufsize int, evi_mode EvidenceMode) *Ar
 	}
 }
 
-// Name returns the name of the area.
+// Name returns the area's name.
 func (a *Area) Name() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.data.Name
 }
 
-// Taken returns the list of taken characters in an area, where "-1" is taken and "0" is free
+// Taken returns the area's taken list, where "-1" is taken and "0" is free
 func (a *Area) Taken() []string {
 	a.mu.Lock()
 	var takenList []string
@@ -150,7 +149,7 @@ func (a *Area) Taken() []string {
 	return takenList
 }
 
-// AddChar adds a player to the area. Returns whether the join was successful.
+// AddChar adds a new player to the area.
 func (a *Area) AddChar(char int) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -165,7 +164,7 @@ func (a *Area) AddChar(char int) bool {
 	return true
 }
 
-// SwitchChar switches a player's character. Returns whether the switch was successful.
+// SwitchChar switches a player's character.
 func (a *Area) SwitchChar(old int, new int) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -197,7 +196,7 @@ func (a *Area) RemoveChar(char int) {
 	a.mu.Unlock()
 }
 
-// HP returns the values of the def and pro HP bars.
+// HP returns the values of the area's def and pro HP bars.
 func (a *Area) HP() (int, int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -264,6 +263,7 @@ func (a *Area) EditEvidence(id int, evi string) {
 	a.mu.Unlock()
 }
 
+// SwapEvidence swaps the indexes of two pieces of evidence.
 func (a *Area) SwapEvidence(x int, y int) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -301,7 +301,7 @@ func (a *Area) CMs() []int {
 	return a.cms
 }
 
-// Adds a new CM to the area.
+// AddCM adds a new CM to the area.
 func (a *Area) AddCM(uid int) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -339,6 +339,7 @@ func (a *Area) EvidenceMode() EvidenceMode {
 	return a.evi_mode
 }
 
+// SetEvidenceMode sets the area's evidence mode.
 func (a *Area) SetEvidenceMode(mode EvidenceMode) {
 	a.mu.Lock()
 	a.evi_mode = mode
@@ -352,6 +353,7 @@ func (a *Area) IniswapAllowed() bool {
 	return a.data.Allow_iniswap
 }
 
+// SetIniswapAllowed sets iniswapping in the area.
 func (a *Area) SetIniswapAllowed(b bool) {
 	a.mu.Lock()
 	a.data.Allow_iniswap = b
@@ -365,6 +367,7 @@ func (a *Area) NoInterrupt() bool {
 	return a.data.Force_noint
 }
 
+// SetNoInterrupt sets non-interrupting preanims in the area.
 func (a *Area) SetNoInterrupt(b bool) {
 	a.mu.Lock()
 	a.data.Force_noint = b
@@ -410,42 +413,49 @@ func (a *Area) IsTaken(char int) bool {
 	}
 }
 
+// CMsAllowed returns whether CMs are allowed in the area.
 func (a *Area) CMsAllowed() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.data.Allow_cms
 }
 
+// SetCMsAllowed sets allowing CMs in the area.
 func (a *Area) SetCMsAllowed(b bool) {
 	a.mu.Lock()
 	a.data.Allow_cms = b
 	a.mu.Unlock()
 }
 
+// Status returns the area's current status.
 func (a *Area) Status() Status {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.status
 }
 
+// SetStatus sets the area's status.
 func (a *Area) SetStatus(status Status) {
 	a.mu.Lock()
 	a.status = status
 	a.mu.Unlock()
 }
 
+// Lock returns the area's lock type.
 func (a *Area) Lock() Lock {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.lock
 }
 
+// SetLock sets the area's lock.
 func (a *Area) SetLock(lock Lock) {
 	a.mu.Lock()
 	a.lock = lock
 	a.mu.Unlock()
 }
 
+// AddInvited adds a new UID to the area's invite list.
 func (a *Area) AddInvited(uid int) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -456,6 +466,7 @@ func (a *Area) AddInvited(uid int) bool {
 	return true
 }
 
+// RemoveInvited removes a UID from the area's invite list.
 func (a *Area) RemoveInvited(uid int) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -468,18 +479,21 @@ func (a *Area) RemoveInvited(uid int) bool {
 	return false
 }
 
+// ClearInvited clears the area's invite list.
 func (a *Area) ClearInvited() {
 	a.mu.Lock()
 	a.invited = []int{}
 	a.mu.Unlock()
 }
 
+// Invited returns the area's invite list.
 func (a *Area) Invited() []int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.invited
 }
 
+// Reset returns all area settings to their default values.
 func (a *Area) Reset() {
 	a.mu.Lock()
 	a.evidence = []string{}
@@ -504,170 +518,70 @@ func (a *Area) Reset() {
 	a.mu.Unlock()
 }
 
+// ForceBGList returns whether the server BG list is enforced in the area.
 func (a *Area) ForceBGList() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.data.Force_bglist
 }
 
+// SetForceBGList sets enforciing the server BG list in the area.
 func (a *Area) SetForceBGList(b bool) {
 	a.mu.Lock()
 	a.data.Force_bglist = b
 	a.mu.Unlock()
 }
 
+// LockBG returns whether the BG is locked in the area.
 func (a *Area) LockBG() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.data.Lock_bg
 }
 
+// SetLockBG sets locking the area's BG.
 func (a *Area) SetLockBG(b bool) {
 	a.mu.Lock()
 	a.data.Lock_bg = b
 	a.mu.Unlock()
 }
 
+// LockMusic returns whether music in the area is CM-only.
 func (a *Area) LockMusic() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.data.Lock_music
 }
 
+// SetLockMusic sets CM-only music in the area.
 func (a *Area) SetLockMusic(b bool) {
 	a.mu.Lock()
 	a.data.Lock_music = b
 	a.mu.Unlock()
 }
 
+// Doc returns the area's doc.
 func (a *Area) Doc() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.doc
 }
 
+// SetDoc sets the area's doc.
 func (a *Area) SetDoc(s string) {
 	a.mu.Lock()
 	a.doc = s
 	a.mu.Unlock()
 }
 
-func (a *Area) TRState() TRState {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.tr.State
-}
-
-func (a *Area) TRSetState(s TRState) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.tr.State = s
-}
-
-func (a *Area) TRCurrentStatement() string {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.tr.Testimony[a.tr.Index]
-}
-
-func (a *Area) TRCurrentIndex() int {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.tr.Index
-}
-
-func (a *Area) TRInsert(s string) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.tr.Index != 0 {
-		x := strings.Split(s, "#")
-		x[14] = "1"
-		s = strings.Join(x, "#")
-	}
-	a.tr.Testimony = append(a.tr.Testimony, "")
-	copy(a.tr.Testimony[a.tr.Index+2:], a.tr.Testimony[a.tr.Index+1:])
-	a.tr.Testimony[a.tr.Index+1] = s
-	return nil
-}
-
-func (a *Area) TRRemove() error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if len(a.tr.Testimony) < 2 {
-		return fmt.Errorf("empty testimony")
-	}
-	a.tr.Testimony = append(a.tr.Testimony[:a.tr.Index], a.tr.Testimony[a.tr.Index+1:]...)
-	return nil
-}
-
-func (a *Area) TRUpdate(s string) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.tr.Index != 0 {
-		x := strings.Split(s, "#")
-		x[14] = "1"
-		s = strings.Join(x, "#")
-	}
-	a.tr.Testimony[a.tr.Index] = s
-	return nil
-}
-
-func (a *Area) TRAdvance() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.tr.Index == len(a.tr.Testimony)-1 {
-		a.tr.Index = 1
-	} else {
-		a.tr.Index++
-	}
-}
-
-func (a *Area) TRRewind() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.tr.Index <= 1 {
-		a.tr.Index = 1
-	} else {
-		a.tr.Index--
-	}
-}
-
-func (a *Area) TRAppend(s string) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.tr.Index != 0 {
-		x := strings.Split(s, "#")
-		x[14] = "1"
-		s = strings.Join(x, "#")
-	}
-	a.tr.Testimony = append(a.tr.Testimony, s)
-}
-
-func (a *Area) TRClear() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.tr.Testimony = []string{}
-	a.tr.Index = 0
-}
-
-func (a *Area) TRLen() int {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return len(a.tr.Testimony)
-}
-
-func (a *Area) TRJump(i int) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.tr.Index = i
-}
-
+// HasTestimony returns whether the area has a recorded testimony.
 func (a *Area) HasTestimony() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return len(a.tr.Testimony) > 2
 }
 
+// Testimony returns the area's recorded testimony.
 func (a *Area) Testimony() []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -681,6 +595,7 @@ func (a *Area) Testimony() []string {
 	return rl
 }
 
+// String returns the string representation of the status.
 func (status Status) String() string {
 	switch status {
 	case StatusIdle:
@@ -699,6 +614,7 @@ func (status Status) String() string {
 	return ""
 }
 
+// String returns the string representation of the lock.
 func (lock Lock) String() string {
 	switch lock {
 	case LockFree:
@@ -711,6 +627,7 @@ func (lock Lock) String() string {
 	return ""
 }
 
+// String returns the string representation of the evimod.
 func (evimod EvidenceMode) String() string {
 	switch evimod {
 	case EviAny:

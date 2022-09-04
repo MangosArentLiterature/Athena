@@ -32,6 +32,7 @@ import (
 var (
 	configFlag   = flag.String("c", "config", "path to config directory")
 	netDebugFlag = flag.Bool("netdebug", false, "log raw network traffic")
+	cliFlag      = flag.Bool("nocli", false, "disables listening for commands on stdin")
 )
 
 func main() {
@@ -72,7 +73,9 @@ func main() {
 	if config.EnableWS {
 		go athena.ListenWS()
 	}
-	go athena.ListenInput()
+	if !*cliFlag {
+		go athena.ListenInput()
+	}
 	stop := make(chan (os.Signal), 2)
 	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	select {

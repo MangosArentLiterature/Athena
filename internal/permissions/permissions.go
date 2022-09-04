@@ -34,7 +34,7 @@ var PermissionField = map[string]uint64{
 	"MOD_EVI":     1 << 4,
 	"MODIFY_AREA": 1 << 5,
 	"MOVE_USERS":  1 << 6,
-	"MOD":         1 << 7,
+	"MOD_SPEAK":   1 << 7,
 	"BAN_INFO":    1 << 8,
 	"MOD_CHAT":    1 << 9,
 	"MUTE":        1 << 10,

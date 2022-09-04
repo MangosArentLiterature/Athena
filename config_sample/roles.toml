@@ -1,3 +1,25 @@
+# This file defines the server moderator roles.
+# Each role is defined by a name and a list of permissions.
+#
+# Available permissions are:
+#
+# CM:           Grants CM permissions in any area.
+# KICK:         Grants permission to kick users from the server.
+# BAN:          Grants permission to ban users from the server.
+# BYPASS_LOCK:  Grants permission to bypass locked areas.
+# MOD_EVI:      Grants permission to modify evidence when an area's evimod is set to "mod"
+# MODIFY_AREA:  Grants permission to modify area settings.
+# MOVE_USERS:   Grants permission to move users to different areas.
+# MOD_SPEAK:    Grants permission to speak officially as a moderator with /mod
+# BAN_INFO:     Grants permission to view server bans.
+# MOD_CHAT:     Grants permission to use the server's mod chat with /modchat
+# MUTE:         Grants permission to mute and parrot users.
+# LOG:          Grants permission to view area logs.
+# ADMIN:        Grants all permissions.
+
+[[Role]]
+name = "moderator"
+permissions = ["CM", "KICK", "BAN", "BYPASS_LOCK", "MOD_EVI", "MODIFY_AREA", "MOVE_USERS", "MOD_SPEAK", "BAN_INFO", "MOD_CHAT", "MUTE", "LOG"]
 [[Role]]
 name = "admin"
 permissions = ["ADMIN"]
