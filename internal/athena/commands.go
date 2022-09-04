@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -1063,27 +1064,21 @@ func cmdMute(client *Client, args []string, usage string) {
 	flags.Parse(args)
 
 	var m MuteState
-	var msg string
 	switch {
 	case *ic && *ooc:
 		m = ICOOCMuted
-		msg = "You have been muted from IC/OOC"
 	case *ic:
 		m = ICMuted
-		msg = "You have been muted from IC"
 	case *ooc:
 		m = OOCMuted
-		msg = "You have been muted from OOC"
 	case *music:
 		m = MusicMuted
-		msg = "You have been muted from changing the music"
 	case *jud:
 		m = JudMuted
-		msg = "You have been muted from judge controls"
 	default:
 		m = ICMuted
-		msg = "You have been muted from IC"
 	}
+	msg := fmt.Sprintf("You have been muted from %v", m.String())
 	if *duration != -1 {
 		msg += fmt.Sprintf(" for %v seconds", *duration)
 	}
@@ -1226,7 +1221,17 @@ func cmdPlay(client *Client, args []string, _ string) {
 		client.SendServerMessage("You are not allowed to change the music in this area.")
 		return
 	}
-	writeToArea(client.Area(), "MC", strings.Join(args, " "), fmt.Sprint(client.CharID()), client.Showname(), "1", "0")
+	s := strings.Join(args, " ")
+
+	// Check if the song we got is a URL for streaming
+	if _, err := url.ParseRequestURI(s); err == nil {
+		s, err = url.QueryUnescape(s) // Unescape any URL encoding
+		if err != nil {
+			client.SendServerMessage("Error parsing URL.")
+			return
+		}
+	}
+	writeToArea(client.Area(), "MC", s, fmt.Sprint(client.CharID()), client.Showname(), "1", "0")
 }
 
 // Handles /testimony

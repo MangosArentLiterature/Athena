@@ -656,6 +656,10 @@ func (m MuteState) String() string {
 		return "OOC"
 	case ICOOCMuted:
 		return "IC/OOC"
+	case MusicMuted:
+		return "from changing the music"
+	case JudMuted:
+		return "from judge controls"
 	}
 	return ""
 }
