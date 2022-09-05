@@ -598,7 +598,7 @@ func (client *Client) CanAlterEvidence() bool {
 func (client *Client) ChangeCharacter(id int) {
 	if client.Area().SwitchChar(client.CharID(), id) {
 		client.SetCharID(id)
-		client.SetShowname(characters[id])
+		client.SetShowname(client.CurrentCharacter())
 		client.SendPacket("PV", "0", "CID", strconv.Itoa(id))
 		writeToArea(client.Area(), "CharsCheck", client.Area().Taken()...)
 	}
