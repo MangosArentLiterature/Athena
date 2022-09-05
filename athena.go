@@ -46,6 +46,11 @@ func main() {
 		os.Exit(1)
 	}
 	logger.LogPath = path.Clean(config.LogDir)
+	if _, err := os.Stat(logger.LogPath); os.IsNotExist(err) {
+		if err := os.Mkdir(logger.LogPath, 0755); err != nil {
+			logger.LogErrorf("failed to make logdir: %v", err)
+		}
+	}
 
 	switch config.LogLevel {
 	case "debug":

@@ -81,7 +81,7 @@ func pktHdid(client *Client, p *packet.Packet) {
 }
 
 // Handles ID#%
-func pktId(client *Client, p *packet.Packet) {
+func pktId(client *Client, _ *packet.Packet) {
 	if client.Uid() != -1 {
 		return
 	}

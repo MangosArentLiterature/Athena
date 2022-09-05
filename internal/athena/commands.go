@@ -65,58 +65,55 @@ var commands = map[string]cmdMapValue{
 	//admin commands
 	"mkusr":   {3, "Usage: /mkusr <username> <password> <role>", "Creates a new moderator user.", permissions.PermissionField["ADMIN"], cmdMakeUser},
 	"rmusr":   {1, "Usage: /rmusr <username>", "Removes a moderator user.", permissions.PermissionField["ADMIN"], cmdRemoveUser},
-	"setrole": {2, "Usage: /setrole <username> <role>", "Updates a moderator user's role.", permissions.PermissionField["ADMIN"], cmdChangeRole},
+	"setrole": {2, "Usage: /setrole <username> <role>", "Changes a moderator user's role.", permissions.PermissionField["ADMIN"], cmdChangeRole},
+
 	//general commands
-	"about":  {0, "Usage: /about", "Prints Athena version information.", permissions.PermissionField["NONE"], cmdAbout},
-	"move":   {1, "Usage: /move [-u <uid1,<uid2>...] <area>\n-u: Target uid(s).", "Moves user(s) to an area.", permissions.PermissionField["NONE"], cmdMove},
-	"pm":     {2, "Usage: /pm <uid1>,<uid2>... <message>", "Privately messages another user(s).", permissions.PermissionField["NONE"], cmdPM},
-	"global": {1, "Usage: /global <message>", "Sends a message to all clients across all areas.", permissions.PermissionField["NONE"], cmdGlobal},
-	"roll":   {1, "Usage: /roll [-p] <dice>d<sides>\n-p: Makes the roll private", "Rolls dice and returns the result(s).", permissions.PermissionField["NONE"], cmdRoll},
-	"motd":   {0, "Usage /motd", "Sends the server's message of the day (MoTD).", permissions.PermissionField["NONE"], cmdMotd},
+	"about":   {0, "Usage: /about", "Prints Athena version information.", permissions.PermissionField["NONE"], cmdAbout},
+	"move":    {1, "Usage: /move [-u <uid1,<uid2>...] <area>\n-u: Uid(s).", "Moves to an area.", permissions.PermissionField["NONE"], cmdMove},
+	"pm":      {2, "Usage: /pm <uid1>,<uid2>... <message>", "Sends a private message.", permissions.PermissionField["NONE"], cmdPM},
+	"global":  {1, "Usage: /global <message>", "Sends a global message.", permissions.PermissionField["NONE"], cmdGlobal},
+	"roll":    {1, "Usage: /roll [-p] <dice>d<sides>\n-p: Private", "Rolls dice.", permissions.PermissionField["NONE"], cmdRoll},
+	"motd":    {0, "Usage /motd", "Sends the server's message of the day.", permissions.PermissionField["NONE"], cmdMotd},
+	"players": {0, "Usage: /players [-a]\n-a: All.", "Shows players in the current or all areas.", permissions.PermissionField["NONE"], cmdPlayers},
+
 	//area commands
-	"bg":           {1, "Usage: /bg <background>", "Sets the area's background.", permissions.PermissionField["CM"], cmdBg},
-	"status":       {1, "Usage: /status <status>", "Sets the area's status.", permissions.PermissionField["CM"], cmdStatus},
-	"cm":           {0, "Usage: /cm [uid1],[uid2]...", "Adds CM(s) to the area.", permissions.PermissionField["NONE"], cmdCM},
-	"uncm":         {0, "Usage: /uncm [uid1],[uid2]...", "Removes CM(s) from the area.", permissions.PermissionField["CM"], cmdUnCM},
-	"lock":         {0, "Usage: /lock [-s]\n-s: Sets the area to spectatable.", "Locks the area or sets it to spectatable.", permissions.PermissionField["CM"], cmdLock},
+	"bg":           {1, "Usage: /bg <background>", "Sets background.", permissions.PermissionField["CM"], cmdBg},
+	"status":       {1, "Usage: /status <status>", "Sets status.", permissions.PermissionField["CM"], cmdStatus},
+	"cm":           {0, "Usage: /cm [uid1],[uid2]...", "Adds CM(s).", permissions.PermissionField["NONE"], cmdCM},
+	"uncm":         {0, "Usage: /uncm [uid1],[uid2]...", "Removes CM(s).", permissions.PermissionField["CM"], cmdUnCM},
+	"lock":         {0, "Usage: /lock [-s]\n-s: Spectatable.", "Locks the area or sets it to spectatable.", permissions.PermissionField["CM"], cmdLock},
 	"unlock":       {0, "Usage: /unlock", "Unlocks the area.", permissions.PermissionField["CM"], cmdUnlock},
-	"invite":       {1, "Usage: /invite <uid1>,<uid2>...", "Invites user(s) to the area.", permissions.PermissionField["CM"], cmdInvite},
-	"uninvite":     {1, "Usage: /uninvite <uid1>,<uid2>...", "Uninvites user(s) to the area.", permissions.PermissionField["CM"], cmdUninvite},
-	"evimode":      {1, "Usage: /evimode <mode>", "Sets the area's evidence mode.", permissions.PermissionField["CM"], cmdSetEviMod},
+	"invite":       {1, "Usage: /invite <uid1>,<uid2>...", "Invites user(s).", permissions.PermissionField["CM"], cmdInvite},
+	"uninvite":     {1, "Usage: /uninvite <uid1>,<uid2>...", "Uninvites user(s).", permissions.PermissionField["CM"], cmdUninvite},
+	"evimode":      {1, "Usage: /evimode <mode>", "Sets the evidence mode.", permissions.PermissionField["CM"], cmdSetEviMod},
 	"kickarea":     {1, "Usage: /kickarea <uid1>,<uid2>...", "Kicks user(s) from the area.", permissions.PermissionField["CM"], cmdAreaKick},
-	"swapevi":      {2, "Usage: /swapevi <id1> <id2>", "Swaps the posistion of two pieces of evidence.", permissions.PermissionField["NONE"], cmdSwapEvi},
-	"nointpres":    {1, "Usage: /nointpres <true|false>", "Toggles non-interrupting preanims in the area.", permissions.PermissionField["MODIFY_AREA"], cmdNoIntPres},
-	"allowiniswap": {1, "Usage: /allowiniswap <true|false>", "Toggles iniswapping in the area.", permissions.PermissionField["MODIFY_AREA"], cmdAllowIniswap},
-	"forcebglist":  {1, "Usage: /forcebglist <true|false>", "Toggles enforcing the server BG list in the area.", permissions.PermissionField["MODIFY_AREA"], cmdForceBGList},
-	"allowcms":     {1, "Usage: /allowcms <true|false>", "Toggles allowing CMs in the area.", permissions.PermissionField["MODIFY_AREA"], cmdAllowCMs},
-	"lockbg":       {1, "Usage: /lockbg <true|false>", "Toggles locking the area's BG", permissions.PermissionField["MODIFY_AREA"], cmdLockBG},
-	"lockmusic":    {1, "Usage: /lockmusic <true|false>", "Toggles making music in the area CM only.", permissions.PermissionField["CM"], cmdLockMusic},
+	"swapevi":      {2, "Usage: /swapevi <id1> <id2>", "Swaps index of evidence.", permissions.PermissionField["NONE"], cmdSwapEvi},
+	"nointpres":    {1, "Usage: /nointpres <true|false>", "Toggles non-interrupting preanims.", permissions.PermissionField["MODIFY_AREA"], cmdNoIntPres},
+	"allowiniswap": {1, "Usage: /allowiniswap <true|false>", "Toggles iniswapping.", permissions.PermissionField["MODIFY_AREA"], cmdAllowIniswap},
+	"forcebglist":  {1, "Usage: /forcebglist <true|false>", "Toggles enforcing the server BG list.", permissions.PermissionField["MODIFY_AREA"], cmdForceBGList},
+	"allowcms":     {1, "Usage: /allowcms <true|false>", "Toggles allowing CMs.", permissions.PermissionField["MODIFY_AREA"], cmdAllowCMs},
+	"lockbg":       {1, "Usage: /lockbg <true|false>", "Toggles locking the BG.", permissions.PermissionField["MODIFY_AREA"], cmdLockBG},
+	"lockmusic":    {1, "Usage: /lockmusic <true|false>", "Toggles making music CM only.", permissions.PermissionField["CM"], cmdLockMusic},
 	"charselect":   {0, "Usage: /charselect [uid1],[uid2]...", "Moves back to character select.", permissions.PermissionField["NONE"], cmdCharSelect},
-	"players":      {0, "Usage: /players [-a]\n-a: Shows players in all areas.", "Shows players in the current area, or all areas.", permissions.PermissionField["NONE"], cmdPlayers},
-	"areainfo":     {0, "Usage: /areainfo", "Shows information on the current area.", permissions.PermissionField["NONE"], cmdAreaInfo},
-	"doc":          {0, "Usage: /doc [-c] [doc]\n-c: Clears the doc.", "Returns or sets the area's doc.", permissions.PermissionField["NONE"], cmdDoc},
+	"areainfo":     {0, "Usage: /areainfo", "Shows area information.", permissions.PermissionField["NONE"], cmdAreaInfo},
+	"doc":          {0, "Usage: /doc [-c] [doc]\n-c: Clear.", "Gets or sets the doc.", permissions.PermissionField["NONE"], cmdDoc},
 	"play":         {1, "Usage: /play <song>", "Plays a song.", permissions.PermissionField["CM"], cmdPlay},
-	"testimony": {0, "Usage /testimony <record|stop|play|update|insert|delete>", "Modifies the testimony recorder, or prints current testimony.",
-		permissions.PermissionField["NONE"], cmdTestimony},
+	"testimony":    {0, "Usage /testimony <record|stop|play|update|insert|delete>", "Modifies or prints recorded testimony.", permissions.PermissionField["NONE"], cmdTestimony},
+
 	//mod commands
-	"login":  {2, "Usage: /login <username> <password>", "Logs in as moderator.", permissions.PermissionField["NONE"], cmdLogin},
-	"logout": {0, "Usage: /logout", "Logs out as moderator.", permissions.PermissionField["NONE"], cmdLogout},
-	"kick": {3, "Usage: /kick -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... <reason>\n-u: Target uid(s).\n-i: Target ipid(s).",
-		"Kicks user(s) from the server.", permissions.PermissionField["KICK"], cmdKick},
-	"ban": {3, "Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>\n-u: Target uid(s).\n-i: Target ipid(s).\n-d: The duration to ban for, with format *s*d*h*d*w, e.g. 30s for 30 seconds.",
-		"Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
-	"mod": {1, "Usage: /mod [-g] <message>\n-g: Sends globally.", "Sends a message speaking officially as a moderator.", permissions.PermissionField["MOD_SPEAK"], cmdMod},
-	"getban": {0, "Usage: /getban [-b banid | -i ipid]\n-b: The banid to search.\n-i: The IPID to search.",
-		"Gets bans by banid, IPID, or the most recent bans.", permissions.PermissionField["BAN_INFO"], cmdGetBan},
+	"login":   {2, "Usage: /login <username> <password>", "Logs in as moderator.", permissions.PermissionField["NONE"], cmdLogin},
+	"logout":  {0, "Usage: /logout", "Logs out as moderator.", permissions.PermissionField["NONE"], cmdLogout},
+	"kick":    {3, "Usage: /kick -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... <reason>\n-u: Uid(s).\n-i: Ipid(s).", "Kicks user(s) from the server.", permissions.PermissionField["KICK"], cmdKick},
+	"ban":     {3, "Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>\n-u: Uid(s).\n-i: Ipid(s).\n-d: Duration", "Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
+	"mod":     {1, "Usage: /mod [-g] <message>\n-g: Global.", "Sends a message speaking officially as a moderator.", permissions.PermissionField["MOD_SPEAK"], cmdMod},
+	"getban":  {0, "Usage: /getban [-b banid | -i ipid]\n-b: BanID.\n-i: IPID.", "Searches bans or gets the most recent bans.", permissions.PermissionField["BAN_INFO"], cmdGetBan},
 	"unban":   {1, "Usage: /unban <id1>,<id2>...", "Nullifies a ban.", permissions.PermissionField["BAN"], cmdUnban},
 	"editban": {2, "Usage: /editban <id1>,<id2>... <reason>", "Changes the reason of ban(s).", permissions.PermissionField["BAN"], cmdEditBan},
-	"modchat": {1, "Usage: /modchat <message>", "Sends a message to the moderator chat.", permissions.PermissionField["MOD_CHAT"], cmdModChat},
-	"mute": {1, "Usage: /mute [-ic][-ooc][-m][-j][-d duration][-r reason] <uid1>,<uid2>...\n-ic: Mutes IC.\n-ooc: Mutes OOC.\n-m: Mutes music change.\n-j: Mutes jud actions.\n-d: Duration, in seconds.\n -r: Reason for mute.",
-		"Mutes a client from IC/OOC/Music/Judge", permissions.PermissionField["MUTE"], cmdMute},
-	"unmute": {1, "Usage: /unmute <uid1>,<uid2>...", "Unmutes (or unparrots) user(s).", permissions.PermissionField["MUTE"], cmdUnmute},
-	"parrot": {1, "Usage: /parrot [-d duration][-r reason] <uid1>,<uid2>...\n-d: Duration, in seconds.\n-r: Reason.",
-		"Parrots a client.", permissions.PermissionField["MUTE"], cmdParrot},
-	"log": {1, "Usage: /log <area>", "Gets an area's log buffer.", permissions.PermissionField["LOG"], cmdLog},
+	"modchat": {1, "Usage: /modchat <message>", "Sends a message to the mod chat.", permissions.PermissionField["MOD_CHAT"], cmdModChat},
+	"mute":    {1, "Usage: /mute [-ic][-ooc][-m][-j][-d duration][-r reason] <uid1>,<uid2>...\n-ic: IC.\n-ooc: OOC.\n-m: Music.\n-j: Judge.\n-d: Duration.\n -r: Reason.", "Mutes users(s) from IC/OOC/Music/Judge.", permissions.PermissionField["MUTE"], cmdMute},
+	"unmute":  {1, "Usage: /unmute <uid1>,<uid2>...", "Unmutes user(s).", permissions.PermissionField["MUTE"], cmdUnmute},
+	"parrot":  {1, "Usage: /parrot [-d duration][-r reason] <uid1>,<uid2>...\n-d: Duration.\n-r: Reason.", "Parrots user(s).", permissions.PermissionField["MUTE"], cmdParrot},
+	"log":     {1, "Usage: /log <area>", "Gets an area's log buffer.", permissions.PermissionField["LOG"], cmdLog},
 }
 
 // ParseCommand calls the appropriate function for a given command.
@@ -125,11 +122,11 @@ func ParseCommand(client *Client, command string, args []string) {
 		var s []string
 		for name, attr := range commands {
 			if permissions.HasPermission(client.Perms(), attr.Permission) || (attr.Permission == permissions.PermissionField["CM"] && client.Area().HasCM(client.Uid())) {
-				s = append(s, fmt.Sprintf("/%v: %v", name, attr.Desc))
+				s = append(s, fmt.Sprintf("- /%v: %v", name, attr.Desc))
 			}
 		}
 		sort.Strings(s)
-		client.SendServerMessage("Recognized commands:\n" + strings.Join(s, "\n") + "To view detailed usage on a command, do /<command> -h")
+		client.SendServerMessage("Recognized commands:\n" + strings.Join(s, "\n") + "\n\nTo view detailed usage on a command, do /<command> -h")
 		return
 	}
 
@@ -153,7 +150,7 @@ func ParseCommand(client *Client, command string, args []string) {
 }
 
 // Handles /login
-func cmdLogin(client *Client, args []string, usage string) {
+func cmdLogin(client *Client, args []string, _ string) {
 	if client.Authenticated() {
 		client.SendServerMessage("You are already logged in.")
 		return
@@ -184,7 +181,7 @@ func cmdLogout(client *Client, _ []string, _ string) {
 }
 
 // Handles /mkusr
-func cmdMakeUser(client *Client, args []string, usage string) {
+func cmdMakeUser(client *Client, args []string, _ string) {
 	if db.UserExists(args[0]) {
 		client.SendServerMessage("User already exists.")
 		return
@@ -206,7 +203,7 @@ func cmdMakeUser(client *Client, args []string, usage string) {
 }
 
 // Handles /rmusr
-func cmdRemoveUser(client *Client, args []string, usage string) {
+func cmdRemoveUser(client *Client, args []string, _ string) {
 	if !db.UserExists(args[0]) {
 		client.SendServerMessage("User does not exist.")
 		return
@@ -228,7 +225,7 @@ func cmdRemoveUser(client *Client, args []string, usage string) {
 }
 
 // Handles /setrole
-func cmdChangeRole(client *Client, args []string, usage string) {
+func cmdChangeRole(client *Client, args []string, _ string) {
 	role, err := getRole(args[1])
 	if err != nil {
 		client.SendServerMessage("Invalid role.")
@@ -362,7 +359,7 @@ func cmdBan(client *Client, args []string, usage string) {
 }
 
 // Handles /kickarea
-func cmdAreaKick(client *Client, args []string, usage string) {
+func cmdAreaKick(client *Client, args []string, _ string) {
 	if client.Area() == areas[0] {
 		client.SendServerMessage("Failed to kick: Cannot kick a user from area 0.")
 		return
@@ -390,7 +387,7 @@ func cmdAreaKick(client *Client, args []string, usage string) {
 }
 
 // Handles /bg
-func cmdBg(client *Client, args []string, usage string) {
+func cmdBg(client *Client, args []string, _ string) {
 	if client.Area().LockBG() && !permissions.HasPermission(client.Perms(), permissions.PermissionField["MODIFY_AREA"]) {
 		client.SendServerMessage("You do not have permission to change the background in this area.")
 		return
@@ -413,7 +410,7 @@ func cmdAbout(client *Client, _ []string, _ string) {
 }
 
 // Handles /cm
-func cmdCM(client *Client, args []string, usage string) {
+func cmdCM(client *Client, args []string, _ string) {
 	if client.CharID() == -1 {
 		client.SendServerMessage("You are spectating; you cannot become a CM.")
 		return
@@ -458,7 +455,7 @@ func cmdCM(client *Client, args []string, usage string) {
 }
 
 // Handles /uncm
-func cmdUnCM(client *Client, args []string, usage string) {
+func cmdUnCM(client *Client, args []string, _ string) {
 	if len(args) == 0 {
 		if !client.Area().HasCM(client.Uid()) {
 			client.SendServerMessage("You are not a CM in this area.")

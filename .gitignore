@@ -15,4 +15,8 @@
 # vendor/
 
 # Binaries
+/athena
 bin/
+dist/
+config/
+logs/

@@ -104,7 +104,7 @@ func (a *Area) TstRewind() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.tr.Index <= 1 {
-		a.tr.Index = 1
+		a.tr.Index = len(a.tr.Testimony) - 1
 	} else {
 		a.tr.Index--
 	}
