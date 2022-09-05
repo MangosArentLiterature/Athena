@@ -348,7 +348,7 @@ func cmdBan(client *Client, args []string, usage string) {
 		if !strings.Contains(report, c.Ipid()) {
 			report += c.Ipid() + ", "
 		}
-		client.SendPacket("KB", fmt.Sprintf("%v\nUntil: %v\nID: %v", reason, untilS, id))
+		c.SendPacket("KB", fmt.Sprintf("%v\nUntil: %v\nID: %v", reason, untilS, id))
 		c.conn.Close()
 		count++
 	}
