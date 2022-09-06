@@ -1037,7 +1037,7 @@ func cmdEditBan(client *Client, args []string, _ string) {
 	}
 	report = strings.TrimSuffix(report, ", ")
 	client.SendServerMessage(fmt.Sprintf("Updated bans: %v", report))
-	addToBuffer(client, "CMD", fmt.Sprintf("Nullified bans: %v to reason: %v.", report, reason), true)
+	addToBuffer(client, "CMD", fmt.Sprintf("Edited bans: %v to reason: %v.", report, reason), true)
 }
 
 // Handles /modchat
