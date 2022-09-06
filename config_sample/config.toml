@@ -33,18 +33,6 @@ max_message_length = 256
 # Valid units are "s" (second), "m" (minute), "h" (hour), "d" (day), "w" (week).
 default_ban_duration = "3d"
 
-# Sets the number of actions (IC chat messages, OOC chat messages, judge actions, etc.) each area should store.
-# When a user calls a mod, this buffer will be flushed to a report file for review.
-log_buffer_size = 150
-
-# Sets the log level. Events of lower levels will not be logged.
-# Valid levels: debug, info, warning, error, fatal
-log_level = "info"
-
-# Sets the path to the log directory.
-# This directory will be used for storing report files and the server audit log.
-log_directory = "logs"
-
 # Sets the number of client connections that can be made from the same IP, also known as "multiclienting".
 # Set to 0 to disable multiclient limiting.
 multiclient_limit = 16
@@ -67,6 +55,27 @@ max_side = 100
 
 # Sets the maximum number of statements a recorded testimony can contain.
 max_testimony = 10
+
+[Logging]
+# Sets the number of actions (IC chat messages, OOC chat messages, judge actions, etc.) each area should store.
+# When a user calls a mod, this buffer will be flushed to a report file for review.
+log_buffer_size = 150
+
+# Sets the log level. Events of lower levels will not be logged.
+# Valid levels: debug, info, warning, error, fatal
+log_level = "info"
+
+# Sets the path to the log directory.
+# This directory will be used for storing report files, the server audit log, and the server log.
+log_directory = "logs"
+
+# Sets whether to log to stdout.
+# If set to true, will write logs to the CLI.
+log_stdout = true
+
+# Sets whether to log to a file.
+# If set to true, will write logs to server.log in log_directory.
+log_file = false
 
 [MasterServer]
 

@@ -64,6 +64,8 @@ func main() {
 	case "fatal":
 		logger.CurrentLevel = logger.Fatal
 	}
+	logger.LogStdOut = config.LogStd
+	logger.LogFile = config.LogFile
 	logger.DebugNetwork = *netDebugFlag
 	db.DBPath = settings.ConfigPath + "/athena.db"
 
