@@ -393,14 +393,16 @@ func cmdBg(client *Client, args []string, _ string) {
 		return
 	}
 
-	if client.Area().ForceBGList() && !sliceutil.ContainsString(backgrounds, args[0]) {
+	arg := strings.Join(args, " ")
+
+	if client.Area().ForceBGList() && !sliceutil.ContainsString(backgrounds, arg) {
 		client.SendServerMessage("Invalid background.")
 		return
 	}
-	client.Area().SetBackground(args[0])
-	writeToArea(client.Area(), "BN", args[0])
-	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v set the background to %v.", client.OOCName(), args[0]))
-	addToBuffer(client, "CMD", fmt.Sprintf("Set BG to %v.", args[0]), false)
+	client.Area().SetBackground(arg)
+	writeToArea(client.Area(), "BN", arg)
+	sendAreaServerMessage(client.Area(), fmt.Sprintf("%v set the background to %v.", client.OOCName(), arg))
+	addToBuffer(client, "CMD", fmt.Sprintf("Set BG to %v.", arg), false)
 }
 
 // Handles /about
