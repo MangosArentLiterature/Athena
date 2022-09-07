@@ -45,20 +45,27 @@ var (
 		Fatal:   "FATAL",
 	}
 	LogPath      string
+	LogStdOut    bool
+	LogFile      bool
 	CurrentLevel LogLevel
 	outputLock   sync.Mutex
 	fileLock     sync.Mutex
 	DebugNetwork bool
 )
 
-// log writes a message to standard output if the level matches the server's set log level.
+// log writes a message to standard output and/or the log file if the level matches the server's set log level.
 func log(level LogLevel, s string) {
 	if level < CurrentLevel {
 		return
 	}
-	outputLock.Lock()
-	fmt.Printf("%v: %v: %v\n", time.Now().UTC().Format(time.StampMilli), levelToString[level], s)
-	outputLock.Unlock()
+	if LogStdOut {
+		outputLock.Lock()
+		fmt.Printf("%v: %v: %v\n", time.Now().UTC().Format(time.StampMilli), levelToString[level], s)
+		outputLock.Unlock()
+	}
+	if LogFile {
+		WriteLog(fmt.Sprintf("%v: %v: %v\n", time.Now().UTC().Format(time.StampMilli), levelToString[level], s))
+	}
 }
 
 // LogDebug prints a debug message to stdout. Arguments are handled in the manner of fmt.Print.
@@ -114,30 +121,53 @@ func LogFatalf(format string, v ...interface{}) {
 // WriteReport flushes a given area buffer to a report file.
 func WriteReport(name string, buffer []string) {
 	fileLock.Lock()
+	defer fileLock.Unlock()
 	fname := fmt.Sprintf("report-%v-%v.log", time.Now().UTC().Format("2006-01-02T150405Z"), name)
 	fcontents := []byte(strings.Join(buffer, "\n"))
 	err := webhook.PostReport(fname, string(fcontents))
 	if err != nil {
 		LogError(err.Error())
+		return
 	}
 	err = os.WriteFile(LogPath+"/"+fname, fcontents, 0755)
 	if err != nil {
 		LogError(err.Error())
+		return
 	}
-	fileLock.Unlock()
 }
 
 // WriteAudit writes a line to the server's audit log.
 func WriteAudit(s string) {
 	fileLock.Lock()
+	defer fileLock.Unlock()
 	f, err := os.OpenFile(LogPath+"/audit.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0755)
 	if err != nil {
 		LogError(err.Error())
+		return
 	}
+	defer f.Close()
 	_, err = f.WriteString(fmt.Sprintf("[%v] %v\n", time.Now().UTC().Format("2006/01/02"), s))
 	if err != nil {
 		LogError(err.Error())
+		return
 	}
-	f.Close()
-	fileLock.Unlock()
+}
+
+// WriteLog writes a line to the server's log file.
+func WriteLog(s string) {
+	fileLock.Lock()
+	defer fileLock.Unlock()
+	f, err := os.OpenFile(LogPath+"/server.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0755)
+	if err != nil {
+		LogFile = false //prevents infinite recursion if can't open log file
+		LogError(err.Error())
+		return
+	}
+	defer f.Close()
+	_, err = f.WriteString(s)
+	if err != nil {
+		LogFile = false
+		LogError(err.Error())
+		return
+	}
 }

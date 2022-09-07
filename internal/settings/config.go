@@ -33,6 +33,7 @@ var ConfigPath string
 
 type Config struct {
 	ServerConfig `toml:"Server"`
+	LogConfig    `toml:"Logging"`
 	MSConfig     `toml:"MasterServer"`
 }
 
@@ -43,10 +44,7 @@ type ServerConfig struct {
 	Desc         string `toml:"description"`
 	MaxPlayers   int    `toml:"max_players"`
 	MaxMsg       int    `toml:"max_message_length"`
-	BufSize      int    `toml:"log_buffer_size"`
 	BanLen       string `toml:"default_ban_duration"`
-	LogLevel     string `toml:"log_level"`
-	LogDir       string `toml:"log_directory"`
 	EnableWS     bool   `toml:"enable_webao"`
 	WSPort       int    `toml:"webao_port"`
 	MCLimit      int    `toml:"multiclient_limit"`
@@ -57,6 +55,14 @@ type ServerConfig struct {
 	Motd         string `toml:"motd"`
 	MaxStatement int    `toml:"max_testimony"`
 }
+
+type LogConfig struct {
+	BufSize    int      `toml:"log_buffer_size"`
+	LogLevel   string   `toml:"log_level"`
+	LogDir     string   `toml:"log_directory"`
+	LogMethods []string `toml:"log_methods"`
+}
+
 type MSConfig struct {
 	Advertise bool   `toml:"advertise"`
 	MSAddr    string `toml:"addr"`
@@ -72,16 +78,19 @@ func defaultConfig() *Config {
 			Desc:         "",
 			MaxPlayers:   100,
 			MaxMsg:       256,
-			BufSize:      150,
 			BanLen:       "3d",
-			LogLevel:     "info",
-			LogDir:       "logs",
 			EnableWS:     false,
 			WSPort:       27017,
 			MCLimit:      16,
 			MaxDice:      100,
 			MaxSide:      100,
 			MaxStatement: 10,
+		},
+		LogConfig{
+			BufSize:    150,
+			LogLevel:   "info",
+			LogDir:     "logs",
+			LogMethods: []string{"stdout"},
 		},
 		MSConfig{
 			Advertise: false,

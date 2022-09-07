@@ -27,6 +27,7 @@ import (
 	"github.com/MangosArentLiterature/Athena/internal/db"
 	"github.com/MangosArentLiterature/Athena/internal/logger"
 	"github.com/MangosArentLiterature/Athena/internal/settings"
+	"github.com/MangosArentLiterature/Athena/internal/sliceutil"
 )
 
 var (
@@ -64,6 +65,8 @@ func main() {
 	case "fatal":
 		logger.CurrentLevel = logger.Fatal
 	}
+	logger.LogStdOut = sliceutil.ContainsString(config.LogMethods, "stdout")
+	logger.LogFile = sliceutil.ContainsString(config.LogMethods, "log_file")
 	logger.DebugNetwork = *netDebugFlag
 	db.DBPath = settings.ConfigPath + "/athena.db"
 
