@@ -69,13 +69,9 @@ log_level = "info"
 # This directory will be used for storing report files, the server audit log, and the server log.
 log_directory = "logs"
 
-# Sets whether to log to stdout.
-# If set to true, will write logs to the CLI.
-log_stdout = true
-
-# Sets whether to log to a file.
-# If set to true, will write logs to server.log in log_directory.
-log_file = false
+# Sets which log methods to use.
+# Methods: stdout, log_file
+log_methods = [ "stdout" ]
 
 [MasterServer]
 

@@ -57,11 +57,10 @@ type ServerConfig struct {
 }
 
 type LogConfig struct {
-	BufSize  int    `toml:"log_buffer_size"`
-	LogLevel string `toml:"log_level"`
-	LogDir   string `toml:"log_directory"`
-	LogStd   bool   `toml:"log_stdout"`
-	LogFile  bool   `toml:"log_file"`
+	BufSize    int      `toml:"log_buffer_size"`
+	LogLevel   string   `toml:"log_level"`
+	LogDir     string   `toml:"log_directory"`
+	LogMethods []string `toml:"log_methods"`
 }
 
 type MSConfig struct {
@@ -88,11 +87,10 @@ func defaultConfig() *Config {
 			MaxStatement: 10,
 		},
 		LogConfig{
-			BufSize:  150,
-			LogLevel: "info",
-			LogDir:   "logs",
-			LogStd:   true,
-			LogFile:  false,
+			BufSize:    150,
+			LogLevel:   "info",
+			LogDir:     "logs",
+			LogMethods: []string{"stdout"},
 		},
 		MSConfig{
 			Advertise: false,
