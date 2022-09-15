@@ -75,6 +75,7 @@ type Client struct {
 	muted         MuteState
 	muteuntil     time.Time
 	showname      string
+	narrator      bool
 }
 
 // NewClient returns a new client.
@@ -574,6 +575,23 @@ func (client *Client) IsParrot() bool {
 		return !client.CheckUnmute()
 	}
 	return false
+}
+
+// IsNarrator returns whether the client is a narrator.
+func (client *Client) IsNarrator() bool {
+	return client.narrator
+}
+
+// ToggleNarrator sets whether a client is a narrator.
+func (client *Client) ToggleNarrator() {
+	client.mu.Lock()
+	client.narrator = !client.narrator
+	client.mu.Unlock()	
+	if client.narrator {
+		client.SendServerMessage("You are now in narrator mode.")
+	} else {
+		client.SendServerMessage("You are no longer in narrator mode.")
+	}
 }
 
 // canAlterEvidence is a helper function that returns if a client can alter evidence in their current area.
