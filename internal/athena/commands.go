@@ -68,13 +68,13 @@ var commands = map[string]cmdMapValue{
 	"setrole": {2, "Usage: /setrole <username> <role>", "Changes a moderator user's role.", permissions.PermissionField["ADMIN"], cmdChangeRole},
 
 	//general commands
-	"about":   {0, "Usage: /about", "Prints Athena version information.", permissions.PermissionField["NONE"], cmdAbout},
-	"move":    {1, "Usage: /move [-u <uid1,<uid2>...] <area>\n-u: Uid(s).", "Moves to an area.", permissions.PermissionField["NONE"], cmdMove},
-	"pm":      {2, "Usage: /pm <uid1>,<uid2>... <message>", "Sends a private message.", permissions.PermissionField["NONE"], cmdPM},
-	"global":  {1, "Usage: /global <message>", "Sends a global message.", permissions.PermissionField["NONE"], cmdGlobal},
-	"roll":    {1, "Usage: /roll [-p] <dice>d<sides>\n-p: Private", "Rolls dice.", permissions.PermissionField["NONE"], cmdRoll},
-	"motd":    {0, "Usage /motd", "Sends the server's message of the day.", permissions.PermissionField["NONE"], cmdMotd},
-	"players": {0, "Usage: /players [-a]\n-a: All.", "Shows players in the current or all areas.", permissions.PermissionField["NONE"], cmdPlayers},
+	"about":    {0, "Usage: /about", "Prints Athena version information.", permissions.PermissionField["NONE"], cmdAbout},
+	"move":     {1, "Usage: /move [-u <uid1,<uid2>...] <area>\n-u: Uid(s).", "Moves to an area.", permissions.PermissionField["NONE"], cmdMove},
+	"pm":       {2, "Usage: /pm <uid1>,<uid2>... <message>", "Sends a private message.", permissions.PermissionField["NONE"], cmdPM},
+	"global":   {1, "Usage: /global <message>", "Sends a global message.", permissions.PermissionField["NONE"], cmdGlobal},
+	"roll":     {1, "Usage: /roll [-p] <dice>d<sides>\n-p: Private", "Rolls dice.", permissions.PermissionField["NONE"], cmdRoll},
+	"motd":     {0, "Usage /motd", "Sends the server's message of the day.", permissions.PermissionField["NONE"], cmdMotd},
+	"players":  {0, "Usage: /players [-a]\n-a: All.", "Shows players in the current or all areas.", permissions.PermissionField["NONE"], cmdPlayers},
 	"narrator": {0, "Usage: /narrator", "Toggles narrator mode.", permissions.PermissionField["NONE"], cmdNarrator},
 
 	//area commands
@@ -105,11 +105,11 @@ var commands = map[string]cmdMapValue{
 	"login":   {2, "Usage: /login <username> <password>", "Logs in as moderator.", permissions.PermissionField["NONE"], cmdLogin},
 	"logout":  {0, "Usage: /logout", "Logs out as moderator.", permissions.PermissionField["NONE"], cmdLogout},
 	"kick":    {3, "Usage: /kick -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... <reason>\n-u: Uid(s).\n-i: Ipid(s).", "Kicks user(s) from the server.", permissions.PermissionField["KICK"], cmdKick},
-	"ban":     {3, "Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>\n-u: Uid(s).\n-i: Ipid(s).\n-d: Duration", "Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
+	"ban":     {3, "Usage: /ban -u <uid1>,<uid2>... | -i <ipid1>,<ipid2>... [-d duration] <reason>\n-u: Uid(s).\n-i: Ipid(s).\n-d: Duration.", "Bans user(s) from the server.", permissions.PermissionField["BAN"], cmdBan},
 	"mod":     {1, "Usage: /mod [-g] <message>\n-g: Global.", "Sends a message speaking officially as a moderator.", permissions.PermissionField["MOD_SPEAK"], cmdMod},
 	"getban":  {0, "Usage: /getban [-b banid | -i ipid]\n-b: BanID.\n-i: IPID.", "Searches bans or gets the most recent bans.", permissions.PermissionField["BAN_INFO"], cmdGetBan},
 	"unban":   {1, "Usage: /unban <id1>,<id2>...", "Nullifies a ban.", permissions.PermissionField["BAN"], cmdUnban},
-	"editban": {2, "Usage: /editban <id1>,<id2>... <reason>", "Changes the reason of ban(s).", permissions.PermissionField["BAN"], cmdEditBan},
+	"editban": {2, "Usage: /editban [-d duration] [-r reason] <id1>,<id2>...\n-d Duration.\n-r Reason.", "Changes the reason of ban(s).", permissions.PermissionField["BAN"], cmdEditBan},
 	"modchat": {1, "Usage: /modchat <message>", "Sends a message to the mod chat.", permissions.PermissionField["MOD_CHAT"], cmdModChat},
 	"mute":    {1, "Usage: /mute [-ic][-ooc][-m][-j][-d duration][-r reason] <uid1>,<uid2>...\n-ic: IC.\n-ooc: OOC.\n-m: Music.\n-j: Judge.\n-d: Duration.\n -r: Reason.", "Mutes users(s) from IC/OOC/Music/Judge.", permissions.PermissionField["MUTE"], cmdMute},
 	"unmute":  {1, "Usage: /unmute <uid1>,<uid2>...", "Unmutes user(s).", permissions.PermissionField["MUTE"], cmdUnmute},
@@ -1026,24 +1026,62 @@ func cmdUnban(client *Client, args []string, _ string) {
 }
 
 // Handles /editban
-func cmdEditBan(client *Client, args []string, _ string) {
-	toUpdate := strings.Split(args[0], ",")
-	reason := strings.Join(args[1:], " ")
+func cmdEditBan(client *Client, args []string, usage string) {
+	flags := flag.NewFlagSet("", 0)
+	flags.SetOutput(io.Discard)
+	duration := flags.String("d", "", "")
+	reason := flags.String("r", "", "")
+	flags.Parse(args)
+	useDur := *duration != ""
+	useReason := *reason != ""
+
+	if len(flags.Args()) == 0 || (!useDur && !useReason) {
+		client.SendServerMessage("Not enough arguments:\n" + usage)
+		return
+	}
+	toUpdate := strings.Split(flags.Arg(0), ",")
+	var until int64
+	if useDur {
+		if strings.ToLower(*duration) == "perma" {
+			until = -1
+		} else {
+			parsedDur, err := str2duration.ParseDuration(*duration)
+			if err != nil {
+				client.SendServerMessage("Failed to ban: Cannot parse duration.")
+				return
+			}
+			until = time.Now().UTC().Add(parsedDur).Unix()
+		}
+	}
+
 	var report string
 	for _, s := range toUpdate {
 		id, err := strconv.Atoi(s)
 		if err != nil {
 			continue
 		}
-		err = db.UpdateBan(id, reason)
-		if err != nil {
-			continue
+		if useDur {
+			err = db.UpdateDuration(id, until)
+			if err != nil {
+				continue
+			}
+		}
+		if useReason {
+			err = db.UpdateReason(id, *reason)
+			if err != nil {
+				continue
+			}
 		}
 		report += fmt.Sprintf("%v, ", s)
 	}
 	report = strings.TrimSuffix(report, ", ")
 	client.SendServerMessage(fmt.Sprintf("Updated bans: %v", report))
-	addToBuffer(client, "CMD", fmt.Sprintf("Edited bans: %v to reason: %v.", report, reason), true)
+	if useDur {
+		addToBuffer(client, "CMD", fmt.Sprintf("Edited bans: %v to duration: %v.", report, duration), true)
+	}
+	if useReason {
+		addToBuffer(client, "CMD", fmt.Sprintf("Edited bans: %v to reason: %v.", report, reason), true)
+	}
 }
 
 // Handles /modchat

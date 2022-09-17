@@ -245,9 +245,18 @@ func IsBanned(by BanLookup, value string) (bool, BanInfo, error) {
 	return false, BanInfo{}, nil
 }
 
-// UpdateBan updates the reason of a ban.
-func UpdateBan(id int, reason string) error {
+// UpdateReason updates the reason of a ban.
+func UpdateReason(id int, reason string) error {
 	_, err := db.Exec("UPDATE BANS SET REASON = ? WHERE ID = ?", reason, id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// UpdateDuration updates the duration of a ban.
+func UpdateDuration(id int, duration int64) error {
+	_, err := db.Exec("UPDATE BANS SET DURATION = ? WHERE ID = ?", duration, id)
 	if err != nil {
 		return err
 	}
