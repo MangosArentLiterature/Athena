@@ -174,6 +174,9 @@ func pktIC(client *Client, p *packet.Packet) {
 	if client.IsParrot() { // Bring out the parrot please.
 		args[4] = getParrotMsg()
 	}
+	if client.IsNarrator() {
+		args[3] = ""	
+	}
 	emote_mod, err := strconv.Atoi(args[7])
 	if err != nil {
 		return

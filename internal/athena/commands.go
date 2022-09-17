@@ -75,6 +75,7 @@ var commands = map[string]cmdMapValue{
 	"roll":    {1, "Usage: /roll [-p] <dice>d<sides>\n-p: Private", "Rolls dice.", permissions.PermissionField["NONE"], cmdRoll},
 	"motd":    {0, "Usage /motd", "Sends the server's message of the day.", permissions.PermissionField["NONE"], cmdMotd},
 	"players": {0, "Usage: /players [-a]\n-a: All.", "Shows players in the current or all areas.", permissions.PermissionField["NONE"], cmdPlayers},
+	"narrator": {0, "Usage: /narrator", "Toggles narrator mode.", permissions.PermissionField["NONE"], cmdNarrator},
 
 	//area commands
 	"bg":           {1, "Usage: /bg <background>", "Sets background.", permissions.PermissionField["CM"], cmdBg},
@@ -929,6 +930,11 @@ func cmdRoll(client *Client, args []string, _ string) {
 // Handles /motd
 func cmdMotd(client *Client, _ []string, _ string) {
 	client.SendServerMessage(config.Motd)
+}
+
+// Handles /narrator
+func cmdNarrator(client *Client, _ []string, _ string) {
+	client.ToggleNarrator()
 }
 
 // Handles /mod
