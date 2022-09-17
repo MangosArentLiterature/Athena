@@ -7,12 +7,12 @@ default
 DGSEnglishCourt
 DGSJapanCourt
 DualDestinies
-EnglishCourt
 gs4
 GS4Night
 HD
 Khura'in
 NewCourt
+PLvsPWEnglishCourt
 RuinedCourt
 Sky
 SpaceCourt
