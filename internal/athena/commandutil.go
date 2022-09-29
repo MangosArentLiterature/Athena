@@ -18,7 +18,25 @@ package athena
 
 import (
 	"strconv"
+	"strings"
 )
+
+type cmdParamList struct {
+	list *[]string
+}
+
+func (v cmdParamList) String() string {
+	if v.list != nil {
+		return strings.Join(*v.list, ",")
+	}
+	return ""
+}
+
+func (v cmdParamList) Set(s string) error {
+	x := strings.Split(s, ",")
+	*v.list = x
+	return nil
+}
 
 // getUidList returns a list of clients that have the given UID(s).
 func getUidList(uids []string) []*Client {

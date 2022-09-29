@@ -146,6 +146,7 @@ func InitServer(conf *settings.Config) error {
 		}
 		go ms.Advertise(config.MSAddr, advert, updatePlayers, advertDone)
 	}
+	initCommands()
 	return nil
 }
 
